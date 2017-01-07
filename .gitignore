@@ -1,0 +1,7 @@
+# DrRacket autosave files
+*~
+\#*
+.\#*
+
+# Compiled racket bytecode
+compiled
