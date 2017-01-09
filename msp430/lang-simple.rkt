@@ -109,8 +109,8 @@
 (define-syntax-rule (memory-set8! memory addr x)
   (let ([m (vector-ref memory (addr->integer addr))])
     (if (bveq (trunc1 addr) (bv 0 20))
-        (vector-set! memory (addr->integer addr) (bvor (high8 m) (trunc8 x)))
-        (vector-set! memory (addr->integer addr) (bvor (bvshl (trunc8 x) (bv 0 20)) (trunc8 m))))))
+        (vector-set! memory (addr->integer addr) (bvor (bvshl (high8 m) (bv 8 20)) (trunc8 x)))
+        (vector-set! memory (addr->integer addr) (bvor (bvshl (trunc8 x) (bv 8 20)) (trunc8 m))))))
 
 ; register dereference
 (define-syntax-rule (register-ref registers r)
