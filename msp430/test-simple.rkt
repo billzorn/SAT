@@ -2,6 +2,11 @@
 
 (require rosette/lib/match rosette/lib/synthax "lang-simple.rkt")
 
+(define (tabulate-list f length)
+  (if (> length 0)
+      (cons (f) (tabulate-list f (- length 1)))
+      null))
+
 (define (symbolic-int)
   (define-symbolic* i integer?)
   i)
@@ -9,6 +14,31 @@
 (define (symbolic-bv n)
   (define-symbolic* x (bitvector n))
   x)
+
+(define (symbolic-bv-vector n length)
+  (define (symbolic-bv-fixed) (symbolic-bv n))
+  (list->vector (tabulate-list symbolic-bv-fixed length)))
+
+(define-syntax define-test
+  (syntax-rules ()
+    [(define-test r rn m mn body)
+     (let ([r (symbolic-bv-vector mspx-bits rn)]
+           [m (symbolic-bv-vector mspx-bits mn)])
+       body)]
+    [(define-test r rn m mn op1 op2 ... body)
+     (let ([r1 (symbolic-int)] [x1 (symbolic-bv mspx-bits)])
+       (let ([op1 (choose (reg r1) (abs x1) (idx r1 x1))])
+         (define-test r rn m mn op2 ... body)))]))
+
+(define-test r 4 m 4 op1
+  (begin
+    (define-symbolic v1 word?)
+    (store16 (concat (bv 0 4) v1) op1 r m)
+    (define test-sol
+      (verify (assert (bveq (concat (bv 0 4) v1) (load16 op1 r m)))))
+    (printf "should be unsat: ~a\n" test-sol)))
+
+
 
 ;; test store-load
 (define (test-store-load-16)

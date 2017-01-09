@@ -4,7 +4,21 @@
 
 (provide (except-out (all-defined-out) define-instruction define-load-syntax define-store-syntax))
 
-(current-bitwidth 20)
+
+; convenient names for common bv sizes
+(define byte-bits 8)
+(define byte? (bitvector byte-bits))
+(define-syntax-rule (byte x) (bv x byte-bits))
+
+(define word-bits 16)
+(define word? (bitvector word-bits))
+(define-syntax-rule (word x) (bv x word-bits))
+
+(define mspx-bits 20)
+(define mspx-bv? (bitvector mspx-bits))
+(define-syntax-rule (mspx-bv x) (bv x mspx-bits))
+
+(current-bitwidth mspx-bits)
 
 ; instruction set representation
 
@@ -77,27 +91,27 @@
 
 ; truncation
 (define-syntax-rule (trunc16 x)
-  (bvand x (bv #x0ffff 20)))
+  (bvand x (mspx-bv #x0ffff)))
 
 (define-syntax-rule (trunc8 x)
-  (bvand x (bv #x000ff 20)))
+  (bvand x (mspx-bv #x000ff)))
 
 (define-syntax-rule (high8 x)
-  (trunc8 (bvlshr x (bv 8 20))))
+  (trunc8 (bvlshr x (mspx-bv 8))))
 
 (define-syntax-rule (trunc1 x)
-  (bvand x (bv #x00001 20)))
+  (bvand x (mspx-bv #x00001)))
 
 ; address lookup
 (define-syntax-rule (addr->integer addr)
-  (bitvector->integer (bvlshr addr (bv 1 20))))
+  (bitvector->integer (bvlshr addr (mspx-bv 1))))
 
 ; memory dereference
 (define-syntax-rule (memory-ref16 memory addr)
   (trunc16 (vector-ref memory (addr->integer addr))))
 
 (define-syntax-rule (memory-ref8 memory addr)
-  (if (bveq (trunc1 addr) (bv 0 20))
+  (if (bveq (trunc1 addr) (mspx-bv 0))
       (trunc8 (vector-ref memory (addr->integer addr)))
       (high8 (vector-ref memory (addr->integer addr)))))
 
@@ -108,9 +122,9 @@
 ; this is horrible
 (define-syntax-rule (memory-set8! memory addr x)
   (let ([m (vector-ref memory (addr->integer addr))])
-    (if (bveq (trunc1 addr) (bv 0 20))
-        (vector-set! memory (addr->integer addr) (bvor (bvshl (high8 m) (bv 8 20)) (trunc8 x)))
-        (vector-set! memory (addr->integer addr) (bvor (bvshl (trunc8 x) (bv 8 20)) (trunc8 m))))))
+    (if (bveq (trunc1 addr) (mspx-bv 0))
+        (vector-set! memory (addr->integer addr) (bvor (bvshl (high8 m) (mspx-bv 8)) (trunc8 x)))
+        (vector-set! memory (addr->integer addr) (bvor (bvshl (trunc8 x) (mspx-bv 8)) (trunc8 m))))))
 
 ; register dereference
 (define-syntax-rule (register-ref registers r)
@@ -185,14 +199,14 @@
     [(sub.b src dst) (store8 (bvsub (load8 dst r m) (load8 src r m)) dst r m)]
     ; r1 is the status register. for simplicity, only bit and cmp affect it indirectly
     [(bit.w src dst) (let ([x (bvadd (load16 src r m) (load16 dst r m))])
-                       (let ([c (if (bveq x (bv 0 20)) (bv 0 20) (bv 1 20))]
-                             [z (if (bveq x (bv 0 20)) (bv 2 20) (bv 0 20))]
-                             [n (if (bveq (bvand (bv 32768 20) x) (bv 32768 20)) (bv 4 20) (bv 0 20))])
+                       (let ([c (if (bveq x (mspx-bv 0)) (mspx-bv 0) (mspx-bv 1))]
+                             [z (if (bveq x (mspx-bv 0)) (mspx-bv 2) (mspx-bv 0))]
+                             [n (if (bveq (bvand (mspx-bv 32768) x) (mspx-bv 32768)) (mspx-bv 4) (mspx-bv 0))])
                          (bvand c z n)))]
     [(bit.b src dst) (let ([x (bvadd (load8 src r m) (load8 dst r m))])
-                       (let ([c (if (bveq x (bv 0 20)) (bv 0 20) (bv 1 20))]
-                             [z (if (bveq x (bv 0 20)) (bv 2 20) (bv 0 20))]
-                             [n (if (bveq (bvand (bv 128 20) x) (bv 128 20)) (bv 4 20) (bv 0 20))])
+                       (let ([c (if (bveq x (mspx-bv 0)) (mspx-bv 0) (mspx-bv 1))]
+                             [z (if (bveq x (mspx-bv 0)) (mspx-bv 2) (mspx-bv 0))]
+                             [n (if (bveq (bvand (mspx-bv 128) x) (mspx-bv 128)) (mspx-bv 4) (mspx-bv 0))])
                          (bvand c z n)))]
     ; extraction for comparison ends up being kind of nasty...
     [(cmp.w src dst) (let ([srcval (load16 src r m)]
@@ -201,12 +215,12 @@
                          (let ([src16 (extract 15 0 srcval)]
                                [dst16 (extract 15 0 dstval)]
                                [x16 (extract 15 0 x)])
-                           (let ([c (if (bveq (bvand (bv 65536 20) x) (bv 65536 20)) (bv 1 20) (bv 0 20))]
-                                 [z (if (bveq x (bv 0 20)) (bv 2 20) (bv 0 20))]
-                                 [n (if (bvsgt src16 dst16) (bv 4 20) (bv 0 20))]
-                                 [v (if (or (and (bvslt src16 (bv 0 16)) (bvsge dst16 (bv 0 16)) (bvslt x16 (bv 0 16)))
-                                            (and (bvsge src16 (bv 0 16)) (bvslt dst16 (bv 0 16)) (bvsge x16 (bv 0 16))))
-                                        (bv 256 20) (bv 0 20))])
+                           (let ([c (if (bveq (bvand (mspx-bv 65536) x) (mspx-bv 65536)) (mspx-bv 1) (mspx-bv 0))]
+                                 [z (if (bveq x (mspx-bv 0)) (mspx-bv 2) (mspx-bv 0))]
+                                 [n (if (bvsgt src16 dst16) (mspx-bv 4) (mspx-bv 0))]
+                                 [v (if (or (and (bvslt src16 (word 0)) (bvsge dst16 (word 0)) (bvslt x16 (word 0)))
+                                            (and (bvsge src16 (word 0)) (bvslt dst16 (word 0)) (bvsge x16 (word 0))))
+                                        (mspx-bv 256) (mspx-bv 0))])
                          (bvand c z n v)))))]
     [(cmp.b src dst) (let ([srcval (load8 src r m)]
                            [dstval (load8 dst r m)])
@@ -214,18 +228,18 @@
                          (let ([src8 (extract 7 0 srcval)]
                                [dst8 (extract 7 0 dstval)]
                                [x8 (extract 7 0 x)])
-                           (let ([c (if (bveq (bvand (bv 256 20) x) (bv 256 20)) (bv 1 20) (bv 0 20))]
-                                 [z (if (bveq x (bv 0 20)) (bv 2 20) (bv 0 20))]
-                                 [n (if (bvsgt src8 dst8) (bv 4 20) (bv 0 20))]
-                                 [v (if (or (and (bvslt src8 (bv 0 8)) (bvsge dst8 (bv 0 8)) (bvslt x8 (bv 0 8)))
-                                            (and (bvsge src8 (bv 0 8)) (bvslt dst8 (bv 0 8)) (bvsge x8 (bv 0 8))))
-                                        (bv 256 20) (bv 0 20))])
+                           (let ([c (if (bveq (bvand (mspx-bv 256) x) (mspx-bv 256)) (mspx-bv 1) (mspx-bv 0))]
+                                 [z (if (bveq x (mspx-bv 0)) (mspx-bv 2) (mspx-bv 0))]
+                                 [n (if (bvsgt src8 dst8) (mspx-bv 4) (mspx-bv 0))]
+                                 [v (if (or (and (bvslt src8 (byte 0)) (bvsge dst8 (byte 0)) (bvslt x8 (byte 0)))
+                                            (and (bvsge src8 (byte 0)) (bvslt dst8 (byte 0)) (bvsge x8 (byte 0))))
+                                        (mspx-bv 256) (mspx-bv 0))])
                          (bvand c z n v)))))]
                            
     
     ; r0 is the stack pointer
     [(push.w src) (let
-                      ([sp (bvsub (register-ref r 0) (bv 2 20))])
+                      ([sp (bvsub (register-ref r 0) (mspx-bv 2))])
                     (memory-set16! m sp (load16 src r m))
                     (register-set! r 0 sp))]))
 
@@ -248,12 +262,12 @@
              (stepn (state (jump rest branch-condition taken-block untaken-block) r m running) (- n 1))]
             ['()
              (match branch-condition
-               [(jz) (stepn (state (if (bveq (bvand (register-ref r 1) (bv 2 20)) (bv 2 20))
+               [(jz) (stepn (state (if (bveq (bvand (register-ref r 1) (mspx-bv 2)) (mspx-bv 2))
                                        taken-block
                                        untaken-block)
                                    r m running)
                             (- n 1))]
-               [(jz) (stepn (state (if (bveq (bvand (register-ref r 1) (bv 2 20)) (bv 2 20))
+               [(jz) (stepn (state (if (bveq (bvand (register-ref r 1) (mspx-bv 2)) (mspx-bv 2))
                                        untaken-block
                                        taken-block)
                                    r m running)
