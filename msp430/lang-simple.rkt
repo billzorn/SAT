@@ -171,7 +171,7 @@
     [(_ [id register-refx memory-refx truncx])
      #'(begin (define-syntax-rule (id op registers memory)
                 (match op
-                  [(reg r)     (register-refx registers r)]
+                  [(reg r)    (register-refx registers r)]
                   [(imm i)    (truncx i)]
                   [(abs addr) (memory-refx memory addr)]
                   [(idx r i)  (memory-refx memory (bvadd (register-ref registers r) i))])))]
@@ -191,7 +191,7 @@
     [(_ [id register-setx! memory-setx!])
      #'(begin (define-syntax-rule (id x op registers memory)
                 (match op
-                  [(reg r)     (register-setx! registers r x)]
+                  [(reg r)    (register-setx! registers r x)]
                   [(abs addr) (memory-setx! memory addr x)]
                   [(idx r i)  (memory-setx! memory (bvadd (register-ref registers r) i) x)])))]
     [(_ [id register-setx! memory-setx!] more ...)
