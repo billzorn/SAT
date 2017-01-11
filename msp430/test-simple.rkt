@@ -3,6 +3,8 @@
 (require rosette/lib/synthax "lang-simple.rkt")
 (require rackunit rackunit/text-ui)
 
+(provide check-sat? check-unsat? define-test/ops test-verbosity)
+
 ; test suite infrastructure courtesy of rackunit
 
 (define-check (check-sat? model)
@@ -72,7 +74,7 @@
 
 (define test-rn 4)
 (define test-mn 4)
-(set-box! test-verbosity 2)
+(set-box! test-verbosity 0)
 
 ; tests
 
@@ -199,8 +201,8 @@
       (bveq (extract 19 16 v1) (bv 0 4)))))
   )
 
-(run-tests ts-store/load)
-(run-tests ts-double-op)
+;(run-tests ts-store/load)
+;(run-tests ts-double-op)
 
 ;;; now hardcode a test of MOV
 ;(define (test-MOV-1)
