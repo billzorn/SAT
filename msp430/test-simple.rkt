@@ -90,29 +90,29 @@
    (define-test/ops r test-rn m test-mn op1
      (begin
        (define-symbolic v1 word?)
-       (store16 (concat (bv 0 4) v1) op1 r m))
-     (bveq (concat (bv 0 4) v1) (load16 op1 r m))))
+       (store16 (word->mspx v1) op1 r m))
+     (bveq (word->mspx v1) (load16 op1 r m))))
   
   (check-unsat?
    (define-test/ops r test-rn m test-mn op1
      (begin
        (define-symbolic v1 byte?)
-       (store8 (concat (bv 0 12) v1) op1 r m))
-     (bveq (concat (bv 0 12) v1) (load8 op1 r m))))
+       (store8 (byte->mspx v1) op1 r m))
+     (bveq (byte->mspx v1) (load8 op1 r m))))
   
   (check-sat?
    (define-test/ops r test-rn m test-mn op1
      (begin
        (define-symbolic v1 word?)
-       (store16 (concat (bv 0 4) v1) op1 r m))
-     (bveq (concat (bv 0 4) v1) (load8 op1 r m))))
+       (store16 (word->mspx v1) op1 r m))
+     (bveq (word->mspx v1) (load8 op1 r m))))
   
   (check-sat?
    (define-test/ops r test-rn m test-mn op1
      (begin
        (define-symbolic v1 byte?)
-       (store8 (concat (bv 0 12) v1) op1 r m))
-     (bveq (concat (bv 0 12) v1) (load16 op1 r m))))
+       (store8 (byte->mspx v1) op1 r m))
+     (bveq (byte->mspx v1) (load16 op1 r m))))
   )
 
 (define-test-suite ts-double-op
@@ -120,16 +120,26 @@
    "mov.w"
    (check-unsat?
     (define-test/ops r test-rn m test-mn op1 op2
-      (let* ([running (box #t)]
-             [test-state (state
-                          (halt (list (mov.w op1 op2)))
-                          r m running)])
-        (define v1 (extract 15 0 (load16 op1 r m)))
+      (begin
+        (define running (box #t))
+        (define test-state (state
+                            (halt (list (mov.w op1 op2)))
+                            r m running))
+        (define v1 (mspx->word (load16 op1 r m)))
         (stepn test-state 2))
-      (bveq (concat (bv 0 4) v1) (load16 op2 r m)))))
+      (bveq (word->mspx v1) (load16 op2 r m))))
+   (check-sat?
+    (define-test/ops r test-rn m test-mn op1 op2
+      (begin
+        (define running (box #t))
+        (define test-state (state
+                            (halt (list (mov.w op1 op2)))
+                            r m running))
+        (begin
+          (define v1 (mspx->word (load16 op1 r m)))
+          (stepn test-state 2)))
+      (bveq (word->mspx v1) (load16 op2 r m)))))
   )
-      
-        
 
 (run-tests ts-double-op)
 

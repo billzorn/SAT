@@ -5,7 +5,7 @@
 (provide (except-out (all-defined-out) define-instruction define-load-syntax define-store-syntax))
 
 
-; convenient names for common bv sizes
+; convenient names for common bv sizes (move to separate library?)
 (define byte-bits 8)
 (define byte? (bitvector byte-bits))
 (define-syntax-rule (byte x) (bv x byte-bits))
@@ -19,6 +19,23 @@
 (define-syntax-rule (mspx-bv x) (bv x mspx-bits))
 
 (current-bitwidth mspx-bits)
+
+; bitwidth conversions (move to separate library?)
+
+(define-syntax-rule (byte->word x)
+  (concat (bv 0 8) x))
+(define-syntax-rule (word->byte x)
+  (extract 7 0 x))
+
+(define-syntax-rule (word->mspx x)
+  (concat (bv 0 4) x))
+(define-syntax-rule (mspx->word x)
+  (extract 15 0 x))
+
+(define-syntax-rule (byte->mspx x)
+  (concat (bv 0 12) x))
+(define-syntax-rule (mspx->byte x)
+  (extract 7 0 x))
 
 ; instruction set representation
 
@@ -212,9 +229,9 @@
     [(cmp.w src dst) (let ([srcval (load16 src r m)]
                            [dstval (load16 dst r m)])
                        (let ([x (bvsub dstval srcval)])
-                         (let ([src16 (extract 15 0 srcval)]
-                               [dst16 (extract 15 0 dstval)]
-                               [x16 (extract 15 0 x)])
+                         (let ([src16 (mspx->word srcval)]
+                               [dst16 (mspx->word dstval)]
+                               [x16 (mspx->word x)])
                            (let ([c (if (bveq (bvand (mspx-bv 65536) x) (mspx-bv 65536)) (mspx-bv 1) (mspx-bv 0))]
                                  [z (if (bveq x (mspx-bv 0)) (mspx-bv 2) (mspx-bv 0))]
                                  [n (if (bvsgt src16 dst16) (mspx-bv 4) (mspx-bv 0))]
@@ -225,9 +242,9 @@
     [(cmp.b src dst) (let ([srcval (load8 src r m)]
                            [dstval (load8 dst r m)])
                        (let ([x (bvsub dstval srcval)])
-                         (let ([src8 (extract 7 0 srcval)]
-                               [dst8 (extract 7 0 dstval)]
-                               [x8 (extract 7 0 x)])
+                         (let ([src8 (mspx->byte srcval)]
+                               [dst8 (mspx->byte dstval)]
+                               [x8 (mspx->byte x)])
                            (let ([c (if (bveq (bvand (mspx-bv 256) x) (mspx-bv 256)) (mspx-bv 1) (mspx-bv 0))]
                                  [z (if (bveq x (mspx-bv 0)) (mspx-bv 2) (mspx-bv 0))]
                                  [n (if (bvsgt src8 dst8) (mspx-bv 4) (mspx-bv 0))]
