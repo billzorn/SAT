@@ -112,6 +112,21 @@
        (define-symbolic v1 byte?)
        (store8 (byte->mspx v1) op1 r m))
      (bveq (byte->mspx v1) (load16 op1 r m))))
+
+  ; a 16-bit load zeros the 4 high bits, and an 8-bit load zeros the high 12 bits
+  (check-unsat?
+   (define-test/ops r test-rn m test-mn op1
+     (begin
+       (define-symbolic v1/immx mspx-bv?)
+       (define op1/imm (choose op1 (imm v1/immx))))
+     (bveq (bv 0 4) (extract 19 16 (load16 op1/imm r m)))))
+
+  (check-unsat?
+   (define-test/ops r test-rn m test-mn op1
+     (begin
+       (define-symbolic v1/immx mspx-bv?)
+       (define op1/imm (choose op1 (imm v1/immx))))
+     (bveq (bv 0 12) (extract 19 8 (load8 op1/imm r m)))))
   )
 
 (define-test-suite ts-double-op
