@@ -170,3 +170,25 @@ test-state
      (define v2 (mspx->word (load16 op2 r m)))
      (stepn test-state 2))
    (bveq (bvadd v1 v2) (mspx->word (load16 op2 r m)))))
+
+; what about backward edges
+
+(define loop-regs (vector (mspx-bv 3) (mspx-bv 0) (mspx-bv 0) (mspx-bv 0)))
+(define loop-mem (vector (mspx-bv 0) (mspx-bv 0) (mspx-bv 0) (mspx-bv 0)))
+(define loop-running (box #t))
+(letrec ([loop-body (state (jump (list
+                                (sub.w (imm (mspx-bv 3)) (reg 0))
+                                (cmp.w (imm (mspx-bv 0)) (reg 0)))
+                               (jnz)
+                               loop-tmp
+                               loop-end)
+                         loop-regs loop-mem loop-running)]
+         [loop-end (state (halt (list (mov.w (imm (mspx-bv 1)) (reg 1))))
+                        loop-regs loop-mem loop-running)]
+         [loop-tmp (state (jump (list) (jmp) loop-body loop-body))]
+         )
+  
+  (stepn loop-body 1))
+loop-regs
+loop-mem
+loop-running
