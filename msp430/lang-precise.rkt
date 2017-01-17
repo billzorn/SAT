@@ -8,10 +8,15 @@
 
 ; operands
 (struct op () #:transparent)
-(struct reg op (r) #:transparent)
-(struct imm op (i) #:transparent)
-(struct abs op (addr) #:transparent)
-(struct idx op (r i) #:transparent)
+(struct reg op (r) #:transparent)    ; "Rn"
+(struct idx op (r i) #:transparent)  ; "X(Rn)"
+(struct sym op (addr) #:transparent) ; "ADDR"
+(struct abs op (addr) #:transparent) ; "&ADDR"
+(struct im1 op () #:transparent)     ; "#1"
+(struct ind op (r) #:transparent)    ; "@Rn"
+(struct imm2 op (i) #:transparent)   ; "#@N"
+(struct ai op (r) #:transparent)     ; "@Rn+"
+(struct imm op (i) #:transparent)    ; "#N"
 
 ; executable instructions
 (struct instruction () #:transparent)
@@ -44,6 +49,10 @@
 
   ; need jumps somewhere
   )
+
+; representation of complete state
+; instrs is a vector of instructions representing the program.
+(struct state (instrs r m running) #:transparent)
 
 ; master load macro
 (define-syntax (define-load-syntax stx)
@@ -90,21 +99,21 @@
   (match instr
     [(mov.w src dst) (store16 (load16 src r m) dst r m)]
     [(mov.b src dst) (store8 (load8 src r m) dst r m)]
-    [(add.w src dst) (store16 (bvadd (load16 src r m) (load16 dst r m)) dst r m)]
-    [(add.b src dst) (store8 (bvadd (load8 src r m) (load8 dst r m)) dst r m)]
+;    [(add.w src dst) (store16 (bvadd (load16 src r m) (load16 dst r m)) dst r m)]
+;    [(add.b src dst) (store8 (bvadd (load8 src r m) (load8 dst r m)) dst r m)]
     [(sub.w src dst) (store16 (bvsub (load16 dst r m) (load16 src r m)) dst r m)]
     [(sub.b src dst) (store8 (bvsub (load8 dst r m) (load8 src r m)) dst r m)]
     ; r1 is the status register. for simplicity, only bit and cmp affect it indirectly
-    [(bit.w src dst) (let ([x (bvadd (load16 src r m) (load16 dst r m))])
-                       (let ([c (if (bveq x (mspx-bv 0)) (mspx-bv 0) (mspx-bv 1))]
-                             [z (if (bveq x (mspx-bv 0)) (mspx-bv 2) (mspx-bv 0))]
-                             [n (if (bveq (bvand (mspx-bv 32768) x) (mspx-bv 32768)) (mspx-bv 4) (mspx-bv 0))])
-                         (bvand c z n)))]
-    [(bit.b src dst) (let ([x (bvadd (load8 src r m) (load8 dst r m))])
-                       (let ([c (if (bveq x (mspx-bv 0)) (mspx-bv 0) (mspx-bv 1))]
-                             [z (if (bveq x (mspx-bv 0)) (mspx-bv 2) (mspx-bv 0))]
-                             [n (if (bveq (bvand (mspx-bv 128) x) (mspx-bv 128)) (mspx-bv 4) (mspx-bv 0))])
-                         (bvand c z n)))]
+;    [(bit.w src dst) (let ([x (bvadd (load16 src r m) (load16 dst r m))])
+;                       (let ([c (if (bveq x (mspx-bv 0)) (mspx-bv 0) (mspx-bv 1))]
+;                             [z (if (bveq x (mspx-bv 0)) (mspx-bv 2) (mspx-bv 0))]
+;                             [n (if (bveq (bvand (mspx-bv 32768) x) (mspx-bv 32768)) (mspx-bv 4) (mspx-bv 0))])
+;                         (bvand c z n)))]
+;    [(bit.b src dst) (let ([x (bvadd (load8 src r m) (load8 dst r m))])
+;                       (let ([c (if (bveq x (mspx-bv 0)) (mspx-bv 0) (mspx-bv 1))]
+;                             [z (if (bveq x (mspx-bv 0)) (mspx-bv 2) (mspx-bv 0))]
+;                             [n (if (bveq (bvand (mspx-bv 128) x) (mspx-bv 128)) (mspx-bv 4) (mspx-bv 0))])
+;                         (bvand c z n)))]
     ; extraction for comparison ends up being kind of nasty...
     [(cmp.w src dst) (let ([srcval (load16 src r m)]
                            [dstval (load16 dst r m)])
@@ -134,8 +143,33 @@
                          (bvand c z n v)))))]
 
 
-    ; r0 is the stack pointer
-    [(push.w src) (let
-                      ([sp (bvsub (register-ref r 0) (mspx-bv 2))])
-                    (memory-set16! m sp (load16 src r m))
-                    (register-set! r 0 sp))]))
+;    ; r0 is the stack pointer
+;    [(push.w src) (let
+;                      ([sp (bvsub (register-ref r 0) (mspx-bv 2))])
+;                    (memory-set16! m sp (load16 src r m))
+;                    (register-set! r 0 sp))]
+    ))
+
+(define (stepn s n)
+  ; s is a state, n is the number of steps
+  ; placeholder implementation:
+  (set-box! (state-running s) #f)
+  )
+
+; to implement:
+; semantics for all addressing modes
+; step function for mov, sub, and cmp
+; working stepn (obviously only supporting what step supports)
+; start thinking about tests
+
+; interface things:
+; R0 is program counter
+; R1 is stack pointer
+; R2 is status register
+; R3 is zero register
+; R4 - R15 are general purpose
+
+; other things to keep in mind:
+; want to eventually be able to run on hardware
+;   that depends on encoder / decoder / setting up MSP hardware
+;   mspdebug from racket???
