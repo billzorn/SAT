@@ -1,6 +1,6 @@
 #lang rosette/safe
 
-(require rosette/lib/synthax "lang-simple.rkt")
+(require rosette/lib/synthax "../lib/bv.rkt" "lang-base.rkt" "lang-simple.rkt")
 (require rackunit rackunit/text-ui)
 
 (provide check-sat? check-unsat? define-test/ops test-verbosity)
