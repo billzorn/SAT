@@ -61,8 +61,21 @@
      #'(begin (define-syntax-rule (id op registers memory)
                 (match op
                   [(reg r)    (register-refx registers r)]
+
+                  [(im1)      (truncx (bv 1 mspx-bits))]
                   [(imm i)    (truncx i)]
+                  [(imm2 i)   (truncx i)]
+
                   [(abs addr) (memory-refx memory addr)]
+                  ; What it should be 
+;                  [(sym addr) (memory-refx memory (bvadd (register-refx registers 0) addr))]
+                  ; How we're treating it for now
+                  [(sym addr) (memory-refx memory addr)]
+
+                  [(ind r)    (memory-refx memory (register-refx registers r))]
+                  ; Same as above but step needs to also inc val referenced by r
+                  [(ai r)     (memory-refx memory (register-refx registers r))]
+
                   [(idx r i)  (memory-refx memory (bvadd (register-ref registers r) i))])))]
     [(_ [id register-refx memory-refx truncx] more ...)
      #'(begin
@@ -101,8 +114,34 @@
     [(mov.b src dst) (store8 (load8 src r m) dst r m)]
 ;    [(add.w src dst) (store16 (bvadd (load16 src r m) (load16 dst r m)) dst r m)]
 ;    [(add.b src dst) (store8 (bvadd (load8 src r m) (load8 dst r m)) dst r m)]
-    [(sub.w src dst) (store16 (bvsub (load16 dst r m) (load16 src r m)) dst r m)]
-    [(sub.b src dst) (store8 (bvsub (load8 dst r m) (load8 src r m)) dst r m)]
+    ; TODO: lots in common between sub and cmp. What parts of this can be pulled
+    ; out into e.g. a macro for re-use?
+    [(sub.w src dst) (let* ([srcval (load16 src r m)]
+                            [dstval (load16 dst r m)]
+                            [x (bvsub dstval srcval)]
+                            [src16 (mspx->word srcval)]
+                            [dst16 (mspx->word dstval)]
+                            [x16 (mspx->word x)]
+                            [c (if (bit-set? x 16) (mspx-bv 1) (mspx-bv 0))]
+                            [z (if (bveq x (mspx-bv 0)) (mspx-bv 2) (mspx-bv 0))]
+                            [n (if (bvsgt src16 dst16) (mspx-bv 4) (mspx-bv 0))]
+                            [v (if (or (and (bvslt src16 (word 0)) (bvsge dst16 (word 0)) (bvslt x16 (word 0)))
+                                            (and (bvsge src16 (word 0)) (bvslt dst16 (word 0)) (bvsge x16 (word 0))))
+                                        (mspx-bv 256) (mspx-bv 0))])
+                         (begin (store16 x dst r m) (bvor c z n v)))]
+    [(sub.b src dst) (let* ([srcval (load8 src r m)]
+                            [dstval (load8 dst r m)]
+                            [x (bvsub dstval srcval)]
+                            [src8 (mspx->byte srcval)]
+                            [dst8 (mspx->byte dstval)]
+                            [x8 (mspx->byte x)]
+                            [c (if (bit-set? x 8) (mspx-bv 1) (mspx-bv 0))]
+                            [z (if (bveq x (mspx-bv 0)) (mspx-bv 2) (mspx-bv 0))]
+                            [n (if (bvsgt src8 dst8) (mspx-bv 4) (mspx-bv 0))]
+                            [v (if (or (and (bvslt src8 (byte 0)) (bvsge dst8 (byte 0)) (bvslt x8 (byte 0)))
+                                            (and (bvsge src8 (byte 0)) (bvslt dst8 (byte 0)) (bvsge x8 (byte 0))))
+                                        (mspx-bv 256) (mspx-bv 0))])
+                         (begin (store8 x dst r m) (bvor c z n v)))]
     ; r1 is the status register. for simplicity, only bit and cmp affect it indirectly
 ;    [(bit.w src dst) (let ([x (bvadd (load16 src r m) (load16 dst r m))])
 ;                       (let ([c (if (bveq x (mspx-bv 0)) (mspx-bv 0) (mspx-bv 1))]
@@ -115,32 +154,32 @@
 ;                             [n (if (bveq (bvand (mspx-bv 128) x) (mspx-bv 128)) (mspx-bv 4) (mspx-bv 0))])
 ;                         (bvand c z n)))]
     ; extraction for comparison ends up being kind of nasty...
-    [(cmp.w src dst) (let ([srcval (load16 src r m)]
-                           [dstval (load16 dst r m)])
-                       (let ([x (bvsub dstval srcval)])
-                         (let ([src16 (mspx->word srcval)]
-                               [dst16 (mspx->word dstval)]
-                               [x16 (mspx->word x)])
-                           (let ([c (if (bveq (bvand (mspx-bv 65536) x) (mspx-bv 65536)) (mspx-bv 1) (mspx-bv 0))]
-                                 [z (if (bveq x (mspx-bv 0)) (mspx-bv 2) (mspx-bv 0))]
-                                 [n (if (bvsgt src16 dst16) (mspx-bv 4) (mspx-bv 0))]
-                                 [v (if (or (and (bvslt src16 (word 0)) (bvsge dst16 (word 0)) (bvslt x16 (word 0)))
+    [(cmp.w src dst) (let* ([srcval (load16 src r m)]
+                            [dstval (load16 dst r m)]
+                            [x (bvsub dstval srcval)]
+                            [src16 (mspx->word srcval)]
+                            [dst16 (mspx->word dstval)]
+                            [x16 (mspx->word x)]
+                            [c (if (bit-set? x 16) (mspx-bv 1) (mspx-bv 0))]
+                            [z (if (bveq x (mspx-bv 0)) (mspx-bv 2) (mspx-bv 0))]
+                            [n (if (bvsgt src16 dst16) (mspx-bv 4) (mspx-bv 0))]
+                            [v (if (or (and (bvslt src16 (word 0)) (bvsge dst16 (word 0)) (bvslt x16 (word 0)))
                                             (and (bvsge src16 (word 0)) (bvslt dst16 (word 0)) (bvsge x16 (word 0))))
                                         (mspx-bv 256) (mspx-bv 0))])
-                         (bvand c z n v)))))]
-    [(cmp.b src dst) (let ([srcval (load8 src r m)]
-                           [dstval (load8 dst r m)])
-                       (let ([x (bvsub dstval srcval)])
-                         (let ([src8 (mspx->byte srcval)]
-                               [dst8 (mspx->byte dstval)]
-                               [x8 (mspx->byte x)])
-                           (let ([c (if (bveq (bvand (mspx-bv 256) x) (mspx-bv 256)) (mspx-bv 1) (mspx-bv 0))]
-                                 [z (if (bveq x (mspx-bv 0)) (mspx-bv 2) (mspx-bv 0))]
-                                 [n (if (bvsgt src8 dst8) (mspx-bv 4) (mspx-bv 0))]
-                                 [v (if (or (and (bvslt src8 (byte 0)) (bvsge dst8 (byte 0)) (bvslt x8 (byte 0)))
+                         (bvor c z n v))]
+    [(cmp.b src dst) (let* ([srcval (load8 src r m)]
+                            [dstval (load8 dst r m)]
+                            [x (bvsub dstval srcval)]
+                            [src8 (mspx->byte srcval)]
+                            [dst8 (mspx->byte dstval)]
+                            [x8 (mspx->byte x)]
+                            [c (if (bit-set? x 8) (mspx-bv 1) (mspx-bv 0))]
+                            [z (if (bveq x (mspx-bv 0)) (mspx-bv 2) (mspx-bv 0))]
+                            [n (if (bvsgt src8 dst8) (mspx-bv 4) (mspx-bv 0))]
+                            [v (if (or (and (bvslt src8 (byte 0)) (bvsge dst8 (byte 0)) (bvslt x8 (byte 0)))
                                             (and (bvsge src8 (byte 0)) (bvslt dst8 (byte 0)) (bvsge x8 (byte 0))))
                                         (mspx-bv 256) (mspx-bv 0))])
-                         (bvand c z n v)))))]
+                         (bvor c z n v))]
 
 
 ;    ; r0 is the stack pointer

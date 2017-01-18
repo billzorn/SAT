@@ -30,3 +30,8 @@
   (concat (bv 0 12) x))
 (define-syntax-rule (mspx->byte x)
   (extract 7 0 x))
+
+(define-syntax-rule (bit-set? x n) 
+  (let ([two-to-n (bv (expt 2 n) (type-of x))])
+    (bveq (bvand x two-to-n) two-to-n)))
+
