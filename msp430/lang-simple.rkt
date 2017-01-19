@@ -51,7 +51,10 @@
 ; we can't model call, because return blocks have many successors
 (struct bblock () #:transparent)
 (struct halt bblock (instrs) #:transparent)
-(struct jump bblock (instrs branch-condition taken-block untaken-block) #:transparent)
+(struct jump bblock (instrs
+                     branch-condition
+                     [taken-block #:mutable]
+                     [untaken-block #:mutable]) #:transparent)
 
 ; representation of branch conditions
 (struct br () #:transparent)
@@ -104,6 +107,9 @@
   [store16 register-set16! memory-set16!]
   [store8 register-set8! memory-set8!])
 
+(define SP 0)
+(define SR 1)
+
 ; interpreter step function
 ; this macro expands into a huge mess which inlines the entire logic of the step function
 (define (step instr r m)
@@ -115,16 +121,16 @@
     [(sub.w src dst) (store16 (bvsub (load16 dst r m) (load16 src r m)) dst r m)]
     [(sub.b src dst) (store8 (bvsub (load8 dst r m) (load8 src r m)) dst r m)]
     ; r1 is the status register. for simplicity, only bit and cmp affect it indirectly
-    [(bit.w src dst) (let ([x (bvadd (load16 src r m) (load16 dst r m))])
+    [(bit.w src dst) (let ([x (bvand (load16 src r m) (load16 dst r m))])
                        (let ([c (if (bveq x (mspx-bv 0)) (mspx-bv 0) (mspx-bv 1))]
                              [z (if (bveq x (mspx-bv 0)) (mspx-bv 2) (mspx-bv 0))]
                              [n (if (bveq (bvand (mspx-bv 32768) x) (mspx-bv 32768)) (mspx-bv 4) (mspx-bv 0))])
-                         (bvand c z n)))]
-    [(bit.b src dst) (let ([x (bvadd (load8 src r m) (load8 dst r m))])
+                         (register-set! r SR (bvor c z n))))]
+    [(bit.b src dst) (let ([x (bvand (load8 src r m) (load8 dst r m))])
                        (let ([c (if (bveq x (mspx-bv 0)) (mspx-bv 0) (mspx-bv 1))]
                              [z (if (bveq x (mspx-bv 0)) (mspx-bv 2) (mspx-bv 0))]
                              [n (if (bveq (bvand (mspx-bv 128) x) (mspx-bv 128)) (mspx-bv 4) (mspx-bv 0))])
-                         (bvand c z n)))]
+                         (register-set! r SR (bvor c z n))))]
     ; extraction for comparison ends up being kind of nasty...
     [(cmp.w src dst) (let ([srcval (load16 src r m)]
                            [dstval (load16 dst r m)])
@@ -138,7 +144,7 @@
                                  [v (if (or (and (bvslt src16 (word 0)) (bvsge dst16 (word 0)) (bvslt x16 (word 0)))
                                             (and (bvsge src16 (word 0)) (bvslt dst16 (word 0)) (bvsge x16 (word 0))))
                                         (mspx-bv 256) (mspx-bv 0))])
-                         (bvand c z n v)))))]
+                         (register-set! r SR (bvor c z n v))))))]
     [(cmp.b src dst) (let ([srcval (load8 src r m)]
                            [dstval (load8 dst r m)])
                        (let ([x (bvsub dstval srcval)])
@@ -151,7 +157,7 @@
                                  [v (if (or (and (bvslt src8 (byte 0)) (bvsge dst8 (byte 0)) (bvslt x8 (byte 0)))
                                             (and (bvsge src8 (byte 0)) (bvslt dst8 (byte 0)) (bvsge x8 (byte 0))))
                                         (mspx-bv 256) (mspx-bv 0))])
-                         (bvand c z n v)))))]
+                         (register-set! r SR (bvor c z n v))))))]
                            
     
     ; r0 is the stack pointer
@@ -184,7 +190,7 @@
                                        untaken-block)
                                    r m running)
                             (- n 1))]
-               [(jz) (stepn (state (if (bveq (bvand (register-ref r 1) (mspx-bv 2)) (mspx-bv 2))
+               [(jnz) (stepn (state (if (bveq (bvand (register-ref r 1) (mspx-bv 2)) (mspx-bv 2))
                                        untaken-block
                                        taken-block)
                                    r m running)
