@@ -167,7 +167,7 @@
                     (register-set! r 0 sp))]))
 
 (define (stepn s n)
-  (when (> n 0)
+  (if (> n 0)
     (match s
       [(state block r m running)
        (match block
@@ -177,7 +177,8 @@
              (step instr r m)
              (stepn (state (halt rest) r m running) (- n 1))]
             ['()
-             (set-box! running #f)])]
+             (set-box! running #f)
+             s])]
          [(jump instrs branch-condition taken-block untaken-block)
           (match instrs
             [(cons instr rest)
@@ -196,4 +197,5 @@
                                    r m running)
                             (- n 1))]
                [(jmp) (stepn (state taken-block r m running)
-                             (- n 1))])])])])))
+                             (- n 1))])])])])
+    s))

@@ -193,7 +193,7 @@ loop-running
 
 (printf "\nstate after running:\n")
 (define loop-state (state loop-body loop-regs loop-mem loop-running))
-(stepn loop-state 300)
+(define loop-s2 (stepn loop-state 10))
 loop-regs
 loop-mem
 loop-running
