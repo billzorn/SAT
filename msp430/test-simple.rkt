@@ -219,5 +219,6 @@
       (bveq (extract 19 16 v1) (bv 0 4)))))
   )
 
-;(run-tests ts-store/load)
-;(run-tests ts-double-op)
+(define (test-all)
+  (run-tests ts-store/load)
+  (run-tests ts-double-op))

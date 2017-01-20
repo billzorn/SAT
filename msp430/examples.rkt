@@ -173,22 +173,27 @@ test-state
 
 ; what about backward edges
 
-;(define loop-regs (vector (mspx-bv 3) (mspx-bv 0) (mspx-bv 0) (mspx-bv 0)))
-;(define loop-mem (vector (mspx-bv 0) (mspx-bv 0) (mspx-bv 0) (mspx-bv 0)))
-;(define loop-running (box #t))
-;(letrec ([loop-body (state (jump (list
-;                                (sub.w (imm (mspx-bv 3)) (reg 0))
-;                                (cmp.w (imm (mspx-bv 0)) (reg 0)))
-;                               (jnz)
-;                               loop-body
-;                               box loop-end)
-;                         loop-regs loop-mem loop-running)]
-;         [loop-end (state (halt (list (mov.w (imm (mspx-bv 1)) (reg 1))))
-;                        loop-regs loop-mem loop-running)]
-;         [loop-tmp (state (jump (list) (jmp) loop-body loop-body))]
-;         )
-;
-;  (stepn loop-body 1))
-;loop-regs
-;loop-mem
-;loop-running
+(define loop-regs (vector (mspx-bv 75) (mspx-bv 0) (mspx-bv 0) (mspx-bv 0)))
+(define loop-mem (vector (mspx-bv 0) (mspx-bv 0) (mspx-bv 0) (mspx-bv 0)))
+(define loop-running (box #t))
+(define loop-end (halt (list (mov.w (imm (mspx-bv 1)) (reg 2)))))
+(define loop-body (jump (list
+                         (sub.w (imm (mspx-bv 1)) (reg 0))
+                         (cmp.w (imm (mspx-bv 0)) (reg 0)))
+                        (jnz)
+                        'loop-body
+                        loop-end))
+; mutate to make the loop actually work
+(set-jump-taken-block! loop-body loop-body)
+
+(printf "\n\nstate before running:\n")
+loop-regs
+loop-mem
+loop-running
+
+(printf "\nstate after running:\n")
+(define loop-state (state loop-body loop-regs loop-mem loop-running))
+(define loop-s2 (stepn loop-state 10))
+loop-regs
+loop-mem
+loop-running
