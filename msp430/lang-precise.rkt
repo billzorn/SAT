@@ -87,6 +87,23 @@
   [load16 register-ref16 memory-ref16 trunc16]
   [load8 register-ref8 memory-ref8 trunc8])
 
+; can this be collapsed with the load macro in any way?
+(define-syntax (define-loadsrc-syntax stx)
+  (syntax-case stx ()
+    [(_ [id register-refx register-setx! loadx width])
+     #'(begin (define-syntax-rule (id op registers memory)
+          (match op
+            [(ai r) (begin0 (loadx op registers memory) (register-setx! registers r (bvadd (register-refx registers r) width)))]
+            [_ (loadx op registers memory)])))]
+    [(_ [id register-refx register-setx! loadx width] more ...)
+     #'(begin
+         (define-loadsrc-syntax [id register-refx register-setx! loadx width])
+         (define-loadsrc-syntax more ...))]))
+
+(define-loadsrc-syntax 
+  [loadsrc16 register-ref16 register-set16! load16 (mspx-bv 2)]
+  [loadsrc8 register-ref8 register-set8! load8 (mspx-bv 1)])
+
 ; master store macro
 (define-syntax (define-store-syntax stx)
   (syntax-case stx ()
@@ -110,13 +127,13 @@
 ; this macro expands into a huge mess which inlines the entire logic of the step function
 (define (step instr r m)
   (match instr
-    [(mov.w src dst) (store16 (load16 src r m) dst r m)]
-    [(mov.b src dst) (store8 (load8 src r m) dst r m)]
+    [(mov.w src dst) (store16 (loadsrc16 src r m) dst r m)]
+    [(mov.b src dst) (store8 (loadsrc8 src r m) dst r m)]
 ;    [(add.w src dst) (store16 (bvadd (load16 src r m) (load16 dst r m)) dst r m)]
 ;    [(add.b src dst) (store8 (bvadd (load8 src r m) (load8 dst r m)) dst r m)]
     ; TODO: lots in common between sub and cmp. What parts of this can be pulled
     ; out into e.g. a macro for re-use?
-    [(sub.w src dst) (let* ([srcval (load16 src r m)]
+    [(sub.w src dst) (let* ([srcval (loadsrc16 src r m)]
                             [dstval (load16 dst r m)]
                             [x (bvsub dstval srcval)]
                             [src16 (mspx->word srcval)]
@@ -129,7 +146,7 @@
                                             (and (bvsge src16 (word 0)) (bvslt dst16 (word 0)) (bvsge x16 (word 0))))
                                         (mspx-bv 256) (mspx-bv 0))])
                          (begin (store16 x dst r m) (bvor c z n v)))]
-    [(sub.b src dst) (let* ([srcval (load8 src r m)]
+    [(sub.b src dst) (let* ([srcval (loadsrc8 src r m)]
                             [dstval (load8 dst r m)]
                             [x (bvsub dstval srcval)]
                             [src8 (mspx->byte srcval)]
@@ -154,7 +171,7 @@
 ;                             [n (if (bveq (bvand (mspx-bv 128) x) (mspx-bv 128)) (mspx-bv 4) (mspx-bv 0))])
 ;                         (bvand c z n)))]
     ; extraction for comparison ends up being kind of nasty...
-    [(cmp.w src dst) (let* ([srcval (load16 src r m)]
+    [(cmp.w src dst) (let* ([srcval (loadsrc16 src r m)]
                             [dstval (load16 dst r m)]
                             [x (bvsub dstval srcval)]
                             [src16 (mspx->word srcval)]
@@ -167,7 +184,7 @@
                                             (and (bvsge src16 (word 0)) (bvslt dst16 (word 0)) (bvsge x16 (word 0))))
                                         (mspx-bv 256) (mspx-bv 0))])
                          (bvor c z n v))]
-    [(cmp.b src dst) (let* ([srcval (load8 src r m)]
+    [(cmp.b src dst) (let* ([srcval (loadsrc8 src r m)]
                             [dstval (load8 dst r m)]
                             [x (bvsub dstval srcval)]
                             [src8 (mspx->byte srcval)]
