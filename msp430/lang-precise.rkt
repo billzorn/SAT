@@ -2,7 +2,7 @@
 
 (require rosette/lib/match "../lib/bv.rkt" "lang-base.rkt")
 
-(provide (except-out (all-defined-out) define-load-syntax define-store-syntax))
+(provide (except-out (all-defined-out) define-load-syntax define-loadsrc-syntax define-store-syntax))
 
 ; instruction set representation
 
@@ -123,6 +123,8 @@
   [store16 register-set16! memory-set16!]
   [store8 register-set8! memory-set8!])
 
+; Macro for updating the status (flags) register based on the results of some
+; computation
 (define-syntax-rule (update-flags c z n v regs)
   (register-set! regs 2 (bvor (bvand (register-ref regs 2) (bvnot (mspx-bv #b10000111))) c z n v) ))
 
@@ -209,11 +211,38 @@
 ;                    (register-set! r 0 sp))]
     ))
 
+; TODO: bug: doing (stepn s 2) then (stepn s 2) doesn't have the expected result
+;  despite the attempt to handle it correctly in the arg to stepi
+;  Find out why!
 (define (stepn s n)
   ; s is a state, n is the number of steps
-  ; placeholder implementation:
-  (set-box! (state-running s) #f)
-  )
+  ; Define a helper function that will count up to n,
+  ;  updating the instruction pointer along the way
+  (letrec ([stepi (lambda (i)
+                 (if (>= i (vector-length (state-instrs s)))
+                   (set-box! (state-running s) #f)
+                   (begin 
+                     ; Update instruction ptr
+                     (register-set! (state-r s) 0 (mspx-bv i))
+                     ; Compute result of instruction at instruction ptr
+                     (step (vector-ref (state-instrs s) i) (state-r s) (state-m s))
+                     ; If steps left to do, recursively call stepi
+                     ; Otherwise end, returning nothing
+                     (if (< i n) (stepi (+ i 1)) (void)))))])
+    ; Step starting at the current value of the instruction ptr
+    ; (would it be easier to treat i/n as mspx bitvectors throughout here?)
+    (stepi (bitvector->integer (register-ref (state-r s) 0)))))
+
+; Debug test code
+; TODO: turn into actual rackunit tests
+(define regs (vector (mspx-bv 0) (mspx-bv 0) (mspx-bv 0) (mspx-bv 0)))
+(define mem (vector (mspx-bv 0) (mspx-bv 0) (mspx-bv 0) (mspx-bv 0)))
+(define instrs (vector (mov.w (imm (mspx-bv 37)) (idx 1 (mspx-bv 0)))
+                         (mov.w (imm (mspx-bv 40)) (reg 3))
+                         (sub.w (idx 1 (mspx-bv 0)) (reg 3))
+                         (cmp.w (reg 3) (imm (mspx-bv 3)))))
+(define s (state instrs regs mem (box #t)))
+; (stepn s 4)
 
 ; to implement:
 ; semantics for all addressing modes
