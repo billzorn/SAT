@@ -123,6 +123,9 @@
   [store16 register-set16! memory-set16!]
   [store8 register-set8! memory-set8!])
 
+(define-syntax-rule (update-flags c z n v regs)
+  (register-set! regs 2 (bvor (bvand (register-ref regs 2) (bvnot (mspx-bv #b10000111))) c z n v) ))
+
 ; interpreter step function
 ; this macro expands into a huge mess which inlines the entire logic of the step function
 (define (step instr r m)
@@ -145,7 +148,7 @@
                             [v (if (or (and (bvslt src16 (word 0)) (bvsge dst16 (word 0)) (bvslt x16 (word 0)))
                                             (and (bvsge src16 (word 0)) (bvslt dst16 (word 0)) (bvsge x16 (word 0))))
                                         (mspx-bv 256) (mspx-bv 0))])
-                         (begin (store16 x dst r m) (bvor c z n v)))]
+                         (begin (store16 x dst r m) (update-flags c z n v r)))]
     [(sub.b src dst) (let* ([srcval (loadsrc8 src r m)]
                             [dstval (load8 dst r m)]
                             [x (bvsub dstval srcval)]
@@ -158,7 +161,7 @@
                             [v (if (or (and (bvslt src8 (byte 0)) (bvsge dst8 (byte 0)) (bvslt x8 (byte 0)))
                                             (and (bvsge src8 (byte 0)) (bvslt dst8 (byte 0)) (bvsge x8 (byte 0))))
                                         (mspx-bv 256) (mspx-bv 0))])
-                         (begin (store8 x dst r m) (bvor c z n v)))]
+                         (begin (store8 x dst r m) (update-flags c z n v r)))]
     ; r1 is the status register. for simplicity, only bit and cmp affect it indirectly
 ;    [(bit.w src dst) (let ([x (bvadd (load16 src r m) (load16 dst r m))])
 ;                       (let ([c (if (bveq x (mspx-bv 0)) (mspx-bv 0) (mspx-bv 1))]
@@ -183,7 +186,7 @@
                             [v (if (or (and (bvslt src16 (word 0)) (bvsge dst16 (word 0)) (bvslt x16 (word 0)))
                                             (and (bvsge src16 (word 0)) (bvslt dst16 (word 0)) (bvsge x16 (word 0))))
                                         (mspx-bv 256) (mspx-bv 0))])
-                         (bvor c z n v))]
+                         (update-flags c z n v r))]
     [(cmp.b src dst) (let* ([srcval (loadsrc8 src r m)]
                             [dstval (load8 dst r m)]
                             [x (bvsub dstval srcval)]
@@ -196,7 +199,7 @@
                             [v (if (or (and (bvslt src8 (byte 0)) (bvsge dst8 (byte 0)) (bvslt x8 (byte 0)))
                                             (and (bvsge src8 (byte 0)) (bvslt dst8 (byte 0)) (bvsge x8 (byte 0))))
                                         (mspx-bv 256) (mspx-bv 0))])
-                         (bvor c z n v))]
+                         (update-flags c z n v r))]
 
 
 ;    ; r0 is the stack pointer
