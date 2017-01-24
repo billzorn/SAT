@@ -12,7 +12,7 @@
 (struct idx op (r i) #:transparent)  ; "X(Rn)"
 (struct sym op (addr) #:transparent) ; "ADDR"
 (struct abs op (addr) #:transparent) ; "&ADDR"
-(struct im1 op () #:transparent)     ; "#1"
+(struct cg op (i) #:transparent)     ; constant generator including "#1"
 (struct ind op (r) #:transparent)    ; "@Rn"
 (struct imm2 op (i) #:transparent)   ; "#@N"
 (struct ai op (r) #:transparent)     ; "@Rn+"
@@ -39,7 +39,6 @@
   [and.w fmt1] [and.b fmt1]
 
   [push.w fmt2] [push.b fmt2]
-  [pop.w fmt2] [pop.b fmt2] ; normally emulated, explicit due to lack of ai mode
   ; no rrc yet
   [rra.w fmt2] [rra.b fmt2]
   [swpb fmt2]
@@ -62,7 +61,7 @@
                 (match op
                   [(reg r)    (register-refx registers r)]
 
-                  [(im1)      (truncx (bv 1 mspx-bits))]
+                  [(cg i)     (truncx i)]
                   [(imm i)    (truncx i)]
                   [(imm2 i)   (truncx i)]
 
