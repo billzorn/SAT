@@ -29,6 +29,9 @@
 (define-syntax-rule (trunc1 x)
   (bvand x (mspx-bv #x00001)))
 
+(define-syntax-rule (mask1 x)
+  (bvand x (mspx-bv #xffffe)))
+
 ; address lookup
 (define-syntax-rule (addr->integer addr)
   (bitvector->integer (bvlshr addr (mspx-bv 1))))

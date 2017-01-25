@@ -121,16 +121,6 @@
     [(sub.w src dst) (store16 (bvsub (load16 dst r m) (load16 src r m)) dst r m)]
     [(sub.b src dst) (store8 (bvsub (load8 dst r m) (load8 src r m)) dst r m)]
     ; r1 is the status register. for simplicity, only bit and cmp affect it indirectly
-    [(bit.w src dst) (let ([x (bvand (load16 src r m) (load16 dst r m))])
-                       (let ([c (if (bveq x (mspx-bv 0)) (mspx-bv 0) (mspx-bv 1))]
-                             [z (if (bveq x (mspx-bv 0)) (mspx-bv 2) (mspx-bv 0))]
-                             [n (if (bveq (bvand (mspx-bv 32768) x) (mspx-bv 32768)) (mspx-bv 4) (mspx-bv 0))])
-                         (register-set! r SR (bvor c z n))))]
-    [(bit.b src dst) (let ([x (bvand (load8 src r m) (load8 dst r m))])
-                       (let ([c (if (bveq x (mspx-bv 0)) (mspx-bv 0) (mspx-bv 1))]
-                             [z (if (bveq x (mspx-bv 0)) (mspx-bv 2) (mspx-bv 0))]
-                             [n (if (bveq (bvand (mspx-bv 128) x) (mspx-bv 128)) (mspx-bv 4) (mspx-bv 0))])
-                         (register-set! r SR (bvor c z n))))]
     ; extraction for comparison ends up being kind of nasty...
     [(cmp.w src dst) (let ([srcval (load16 src r m)]
                            [dstval (load16 dst r m)])
@@ -158,13 +148,38 @@
                                             (and (bvsge src8 (byte 0)) (bvslt dst8 (byte 0)) (bvsge x8 (byte 0))))
                                         (mspx-bv 256) (mspx-bv 0))])
                          (register-set! r SR (bvor c z n v))))))]
-                           
-    
-    ; r0 is the stack pointer
-    [(push.w src) (let
-                      ([sp (bvsub (register-ref r 0) (mspx-bv 2))])
+    [(bit.w src dst) (let ([x (bvand (load16 src r m) (load16 dst r m))])
+                       (let ([c (if (bveq x (mspx-bv 0)) (mspx-bv 0) (mspx-bv 1))]
+                             [z (if (bveq x (mspx-bv 0)) (mspx-bv 2) (mspx-bv 0))]
+                             [n (if (bveq (bvand (mspx-bv 32768) x) (mspx-bv 32768)) (mspx-bv 4) (mspx-bv 0))])
+                         (register-set! r SR (bvor c z n))))]
+    [(bit.b src dst) (let ([x (bvand (load8 src r m) (load8 dst r m))])
+                       (let ([c (if (bveq x (mspx-bv 0)) (mspx-bv 0) (mspx-bv 1))]
+                             [z (if (bveq x (mspx-bv 0)) (mspx-bv 2) (mspx-bv 0))]
+                             [n (if (bveq (bvand (mspx-bv 128) x) (mspx-bv 128)) (mspx-bv 4) (mspx-bv 0))])
+                         (register-set! r SR (bvor c z n))))]
+    [(bic.w src dst) (store16 (bvand (bvnot (load16 src r m)) (load16 dst r m)) dst r m)]
+    [(bic.b src dst) (store8 (bvand (bvnot (load8 src r m)) (load8 dst r m)) dst r m)]
+    [(bis.w src dst) (store16 (bvor (load16 src r m) (load16 dst r m)) dst r m)]
+    [(bis.b src dst) (store8 (bvor (load8 src r m) (load8 dst r m)) dst r m)]
+    [(xor.w src dst) (store16 (bvxor (load16 src r m) (load16 dst r m)) dst r m)]
+    [(xor.b src dst) (store8 (bvxor (load8 src r m) (load8 dst r m)) dst r m)]
+    [(and.w src dst) (store16 (bvand (load16 src r m) (load16 dst r m)) dst r m)]
+    [(and.b src dst) (store8 (bvand (load8 src r m) (load8 dst r m)) dst r m)]
+
+    ; mask off the first bit, push / pop only deal with even SP addresses
+    [(push.w src) (let ([sp (bvsub (mask1 (register-ref r SP)) (mspx-bv 2))])
                     (memory-set16! m sp (load16 src r m))
-                    (register-set! r 0 sp))]))
+                    (register-set! r SP sp))]
+    [(push.b src) (let ([sp (bvsub (mask1 (register-ref r SP)) (mspx-bv 2))])
+                    (memory-set8! m sp (load8 src r m))
+                    (register-set! r SP sp))]
+    [(pop.w dst) (let ([sp (mask1 (register-ref r SP))])
+                    (store16 (memory-ref16 m sp) dst r m)
+                    (register-set! r SP (bvadd sp (mspx-bv 2))))]
+    [(pop.b dst) (let ([sp (mask1 (register-ref r SP))])
+                    (store8 (memory-ref8 m sp) dst r m)
+                    (register-set! r SP (bvadd sp (mspx-bv 2))))]))
 
 (define (stepn s n)
   (if (> n 0)
