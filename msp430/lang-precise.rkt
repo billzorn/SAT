@@ -2,7 +2,7 @@
 
 (require rosette/lib/match "../lib/bv.rkt" "lang-base.rkt")
 
-(provide (except-out (all-defined-out) define-load-syntax define-loadsrc-syntax define-store-syntax))
+(provide (except-out (all-defined-out) define-load-syntax define-store-syntax))
 
 ; instruction set representation
 
@@ -56,7 +56,7 @@
 ; master load macro
 (define-syntax (define-load-syntax stx)
   (syntax-case stx ()
-    [(_ [id register-refx memory-refx truncx])
+    [(_ [id register-refx register-setx! memory-refx truncx width])
      #'(begin (define-syntax-rule (id op registers memory)
                 (match op
                   [(reg r)    (register-refx registers r)]
@@ -66,42 +66,23 @@
                   [(imm2 i)   (truncx i)]
 
                   [(abs addr) (memory-refx memory addr)]
-                  ; What it should be 
-;                  [(sym addr) (memory-refx memory (bvadd (register-refx registers 0) addr))]
-                  ; How we're treating it for now
+                  ; sym treated like abs (difference handled by decoder)
                   [(sym addr) (memory-refx memory addr)]
 
                   [(ind r)    (memory-refx memory (register-refx registers r))]
                   ; Same as above but step needs to also inc val referenced by r
-                  [(ai r)     (memory-refx memory (register-refx registers r))]
+                  [(ai r)     (begin0 (memory-refx memory (register-refx registers r)) (register-setx! registers r (bvadd (register-refx registers r) width)))]
 
                   [(idx r i)  (memory-refx memory (bvadd (register-ref registers r) i))])))]
-    [(_ [id register-refx memory-refx truncx] more ...)
+    [(_ [id register-refx register-setx! memory-refx truncx width] more ...)
      #'(begin
-         (define-load-syntax [id register-refx memory-refx truncx])
+         (define-load-syntax [id register-refx register-setx! memory-refx truncx width])
          (define-load-syntax more ...))]))
 
 ; define 16-bit and 8-bit load macros
 (define-load-syntax
-  [load16 register-ref16 memory-ref16 trunc16]
-  [load8 register-ref8 memory-ref8 trunc8])
-
-; can this be collapsed with the load macro in any way?
-(define-syntax (define-loadsrc-syntax stx)
-  (syntax-case stx ()
-    [(_ [id register-refx register-setx! loadx width])
-     #'(begin (define-syntax-rule (id op registers memory)
-          (match op
-            [(ai r) (begin0 (loadx op registers memory) (register-setx! registers r (bvadd (register-refx registers r) width)))]
-            [_ (loadx op registers memory)])))]
-    [(_ [id register-refx register-setx! loadx width] more ...)
-     #'(begin
-         (define-loadsrc-syntax [id register-refx register-setx! loadx width])
-         (define-loadsrc-syntax more ...))]))
-
-(define-loadsrc-syntax 
-  [loadsrc16 register-ref16 register-set16! load16 (mspx-bv 2)]
-  [loadsrc8 register-ref8 register-set8! load8 (mspx-bv 1)])
+  [load16 register-ref16 register-set16! memory-ref16 trunc16 (mspx-bv 2)]
+  [load8 register-ref8 register-set8! memory-ref8 trunc8 (mspx-bv 1)])
 
 ; master store macro
 (define-syntax (define-store-syntax stx)
@@ -127,42 +108,36 @@
 (define-syntax-rule (update-flags c z n v regs)
   (register-set! regs 2 (bvor (bvand (register-ref regs 2) (bvnot (mspx-bv #b10000111))) c z n v) ))
 
+; Macro for doing a subtraction and then updating the flags (returns the result
+; of subtraction for possible use)
+(define-syntax-rule (do-sub-flags src dst r m loadx mspx->width width)
+  (let* ([srcval (loadx src r m)]
+         [dstval (loadx dst r m)]
+         [x (bvsub dstval srcval)]
+         [srcx (mspx->width srcval)]
+         [dstx (mspx->width dstval)]
+         [xx (mspx->width x)]
+         [c (if (bit-set? x width) (mspx-bv 1) (mspx-bv 0))]
+         [z (if (bveq x (mspx-bv 0)) (mspx-bv 2) (mspx-bv 0))]
+         [n (if (bvsgt srcx dstx) (mspx-bv 4) (mspx-bv 0))]
+         [v (if (or (and (bvslt srcx (word 0)) (bvsge dstx (word 0)) (bvslt xx (word 0)))
+                          (and (bvsge srcx (word 0)) (bvslt dstx (word 0)) (bvsge xx (word 0))))
+                      (mspx-bv 256) (mspx-bv 0))])
+       (begin (update-flags c z n v r) x)))
+
+
 ; interpreter step function
 ; this macro expands into a huge mess which inlines the entire logic of the step function
 (define (step instr r m)
   (match instr
-    [(mov.w src dst) (store16 (loadsrc16 src r m) dst r m)]
-    [(mov.b src dst) (store8 (loadsrc8 src r m) dst r m)]
+    [(mov.w src dst) (store16 (load16 src r m) dst r m)]
+    [(mov.b src dst) (store8 (load8 src r m) dst r m)]
 ;    [(add.w src dst) (store16 (bvadd (load16 src r m) (load16 dst r m)) dst r m)]
 ;    [(add.b src dst) (store8 (bvadd (load8 src r m) (load8 dst r m)) dst r m)]
-    ; TODO: lots in common between sub and cmp. What parts of this can be pulled
-    ; out into e.g. a macro for re-use?
-    [(sub.w src dst) (let* ([srcval (loadsrc16 src r m)]
-                            [dstval (load16 dst r m)]
-                            [x (bvsub dstval srcval)]
-                            [src16 (mspx->word srcval)]
-                            [dst16 (mspx->word dstval)]
-                            [x16 (mspx->word x)]
-                            [c (if (bit-set? x 16) (mspx-bv 1) (mspx-bv 0))]
-                            [z (if (bveq x (mspx-bv 0)) (mspx-bv 2) (mspx-bv 0))]
-                            [n (if (bvsgt src16 dst16) (mspx-bv 4) (mspx-bv 0))]
-                            [v (if (or (and (bvslt src16 (word 0)) (bvsge dst16 (word 0)) (bvslt x16 (word 0)))
-                                            (and (bvsge src16 (word 0)) (bvslt dst16 (word 0)) (bvsge x16 (word 0))))
-                                        (mspx-bv 256) (mspx-bv 0))])
-                         (begin (store16 x dst r m) (update-flags c z n v r)))]
-    [(sub.b src dst) (let* ([srcval (loadsrc8 src r m)]
-                            [dstval (load8 dst r m)]
-                            [x (bvsub dstval srcval)]
-                            [src8 (mspx->byte srcval)]
-                            [dst8 (mspx->byte dstval)]
-                            [x8 (mspx->byte x)]
-                            [c (if (bit-set? x 8) (mspx-bv 1) (mspx-bv 0))]
-                            [z (if (bveq x (mspx-bv 0)) (mspx-bv 2) (mspx-bv 0))]
-                            [n (if (bvsgt src8 dst8) (mspx-bv 4) (mspx-bv 0))]
-                            [v (if (or (and (bvslt src8 (byte 0)) (bvsge dst8 (byte 0)) (bvslt x8 (byte 0)))
-                                            (and (bvsge src8 (byte 0)) (bvslt dst8 (byte 0)) (bvsge x8 (byte 0))))
-                                        (mspx-bv 256) (mspx-bv 0))])
-                         (begin (store8 x dst r m) (update-flags c z n v r)))]
+
+    [(sub.w src dst) (store16 (do-sub-flags src dst r m load16 mspx->word 16) dst r m)]
+    [(sub.b src dst) (store8 (do-sub-flags src dst r m load8 mspx->byte 8) dst r m)]
+
     ; r1 is the status register. for simplicity, only bit and cmp affect it indirectly
 ;    [(bit.w src dst) (let ([x (bvadd (load16 src r m) (load16 dst r m))])
 ;                       (let ([c (if (bveq x (mspx-bv 0)) (mspx-bv 0) (mspx-bv 1))]
@@ -175,33 +150,8 @@
 ;                             [n (if (bveq (bvand (mspx-bv 128) x) (mspx-bv 128)) (mspx-bv 4) (mspx-bv 0))])
 ;                         (bvand c z n)))]
     ; extraction for comparison ends up being kind of nasty...
-    [(cmp.w src dst) (let* ([srcval (loadsrc16 src r m)]
-                            [dstval (load16 dst r m)]
-                            [x (bvsub dstval srcval)]
-                            [src16 (mspx->word srcval)]
-                            [dst16 (mspx->word dstval)]
-                            [x16 (mspx->word x)]
-                            [c (if (bit-set? x 16) (mspx-bv 1) (mspx-bv 0))]
-                            [z (if (bveq x (mspx-bv 0)) (mspx-bv 2) (mspx-bv 0))]
-                            [n (if (bvsgt src16 dst16) (mspx-bv 4) (mspx-bv 0))]
-                            [v (if (or (and (bvslt src16 (word 0)) (bvsge dst16 (word 0)) (bvslt x16 (word 0)))
-                                            (and (bvsge src16 (word 0)) (bvslt dst16 (word 0)) (bvsge x16 (word 0))))
-                                        (mspx-bv 256) (mspx-bv 0))])
-                         (update-flags c z n v r))]
-    [(cmp.b src dst) (let* ([srcval (loadsrc8 src r m)]
-                            [dstval (load8 dst r m)]
-                            [x (bvsub dstval srcval)]
-                            [src8 (mspx->byte srcval)]
-                            [dst8 (mspx->byte dstval)]
-                            [x8 (mspx->byte x)]
-                            [c (if (bit-set? x 8) (mspx-bv 1) (mspx-bv 0))]
-                            [z (if (bveq x (mspx-bv 0)) (mspx-bv 2) (mspx-bv 0))]
-                            [n (if (bvsgt src8 dst8) (mspx-bv 4) (mspx-bv 0))]
-                            [v (if (or (and (bvslt src8 (byte 0)) (bvsge dst8 (byte 0)) (bvslt x8 (byte 0)))
-                                            (and (bvsge src8 (byte 0)) (bvslt dst8 (byte 0)) (bvsge x8 (byte 0))))
-                                        (mspx-bv 256) (mspx-bv 0))])
-                         (update-flags c z n v r))]
-
+    [(cmp.w src dst) (do-sub-flags src dst r m load16 mspx->word 16)]
+    [(cmp.b src dst) (do-sub-flags src dst r m load8 mspx->byte 8)]
 
 ;    ; r0 is the stack pointer
 ;    [(push.w src) (let
@@ -210,27 +160,19 @@
 ;                    (register-set! r 0 sp))]
     ))
 
-; TODO: bug: doing (stepn s 2) then (stepn s 2) doesn't have the expected result
-;  despite the attempt to handle it correctly in the arg to stepi
-;  Find out why!
 (define (stepn s n)
   ; s is a state, n is the number of steps
-  ; Define a helper function that will count up to n,
-  ;  updating the instruction pointer along the way
-  (letrec ([stepi (lambda (i)
-                 (if (>= i (vector-length (state-instrs s)))
-                   (set-box! (state-running s) #f)
-                   (begin 
-                     ; Update instruction ptr
-                     (register-set! (state-r s) 0 (mspx-bv i))
-                     ; Compute result of instruction at instruction ptr
-                     (step (vector-ref (state-instrs s) i) (state-r s) (state-m s))
-                     ; If steps left to do, recursively call stepi
-                     ; Otherwise end, returning nothing
-                     (if (< i n) (stepi (+ i 1)) (void)))))])
-    ; Step starting at the current value of the instruction ptr
-    ; (would it be easier to treat i/n as mspx bitvectors throughout here?)
-    (stepi (bitvector->integer (register-ref (state-r s) 0)))))
+  (let ([ip (bitvector->integer (register-ref (state-r s) 0))])
+      (begin 
+        ; Compute result of instruction at instruction ptr
+        (step (vector-ref (state-instrs s) ip) (state-r s) (state-m s))
+        ; Update instruction ptr
+        (register-set! (state-r s) 0 (bvadd (mspx-bv (+ ip 1))))
+        ; Do the next step
+        (if (> n 1) 
+          (stepn s (- n 1))
+          (void)))))
+    
 
 ; Debug test code
 ; TODO: turn into actual rackunit tests
@@ -239,7 +181,8 @@
 (define instrs (vector (mov.w (imm (mspx-bv 37)) (idx 1 (mspx-bv 0)))
                          (mov.w (imm (mspx-bv 40)) (reg 3))
                          (sub.w (idx 1 (mspx-bv 0)) (reg 3))
-                         (cmp.w (reg 3) (imm (mspx-bv 3)))))
+                         (cmp.w (reg 3) (imm (mspx-bv 3)))
+                         (sub.w (ai 3) (reg 1))))
 (define s (state instrs regs mem (box #t)))
 ; (stepn s 4)
 
