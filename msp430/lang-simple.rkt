@@ -167,7 +167,7 @@
     [(and.w src dst) (store16 (bvand (load16 src r m) (load16 dst r m)) dst r m)]
     [(and.b src dst) (store8 (bvand (load8 src r m) (load8 dst r m)) dst r m)]
 
-    ; mask off the first bit, push / pop only deal with even SP addresses
+    ; mask off the first bit of SP, push / pop only deal with even SP addresses
     [(push.w src) (let ([sp (bvsub (mask1 (register-ref r SP)) (mspx-bv 2))])
                     (memory-set16! m sp (load16 src r m))
                     (register-set! r SP sp))]
@@ -179,7 +179,24 @@
                     (register-set! r SP (bvadd sp (mspx-bv 2))))]
     [(pop.b dst) (let ([sp (mask1 (register-ref r SP))])
                     (store8 (memory-ref8 m sp) dst r m)
-                    (register-set! r SP (bvadd sp (mspx-bv 2))))]))
+                    (register-set! r SP (bvadd sp (mspx-bv 2))))]
+
+    ; effect on carry is not modeled (yet?)
+    [(rra.w dst) (let ([srcval (load16 dst r m)])
+                   (store16 (bvor (sign16 srcval) (bvlshr srcval 1)) dst r m))]
+    [(rra.b dst) (let ([srcval (load8 dst r m)])
+                   (store8 (bvor (sign8 srcval) (bvlshr srcval 1)) dst r m))]
+
+    [(swpb dst) (let ([srcval (load16 dst r m)])
+                  (store16 (bvor (high8->low srcval) (low8->high srcval)) dst r m))]
+
+    ; does not set 4 high bits in register mode (yet?)
+    [(sxt dst) (let* ([srcval (load16 dst r m)]
+                      [dstval (if (bveq (sign8 srcval) (mspx-bv 0))
+                                  (trunc8 srcval)
+                                  ; macro for this constant?
+                                  (bvor srcval (mspx-bv #x0ff00)))])
+                 (store16 dstval dst r m))]))
 
 (define (stepn s n)
   (if (> n 0)

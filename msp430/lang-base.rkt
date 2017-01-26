@@ -16,7 +16,7 @@
 
 ; execution helper macros
 
-; truncation
+; truncation and masking
 (define-syntax-rule (trunc16 x)
   (bvand x (mspx-bv #x0ffff)))
 
@@ -24,13 +24,25 @@
   (bvand x (mspx-bv #x000ff)))
 
 (define-syntax-rule (high8 x)
+  (bvand x (mspx-bv #x0ff00)))
+
+(define-syntax-rule (high8->low x)
   (trunc8 (bvlshr x (mspx-bv 8))))
+
+(define-syntax-rule (low8->high x)
+  (bvshl (trunc8 x) (mspx-bv 8)))
 
 (define-syntax-rule (trunc1 x)
   (bvand x (mspx-bv #x00001)))
 
 (define-syntax-rule (mask1 x)
   (bvand x (mspx-bv #xffffe)))
+
+(define-syntax-rule (sign16 x)
+  (bvand x (mspx-bv #x08000)))
+
+(define-syntax-rule (sign8 x)
+  (bvand x (mspx-bv #x00080)))
 
 ; address lookup
 (define-syntax-rule (addr->integer addr)
@@ -43,7 +55,7 @@
 (define-syntax-rule (memory-ref8 memory addr)
   (if (bveq (trunc1 addr) (mspx-bv 0))
       (trunc8 (vector-ref memory (addr->integer addr)))
-      (high8 (vector-ref memory (addr->integer addr)))))
+      (high8->low (vector-ref memory (addr->integer addr)))))
 
 ; memory assignment
 (define-syntax-rule (memory-set16! memory addr x)
@@ -53,7 +65,7 @@
 (define-syntax-rule (memory-set8! memory addr x)
   (let ([m (vector-ref memory (addr->integer addr))])
     (if (bveq (trunc1 addr) (mspx-bv 0))
-        (vector-set! memory (addr->integer addr) (bvor (bvshl (high8 m) (mspx-bv 8)) (trunc8 x)))
+        (vector-set! memory (addr->integer addr) (bvor (high8 m) (trunc8 x)))
         (vector-set! memory (addr->integer addr) (bvor (bvshl (trunc8 x) (mspx-bv 8)) (trunc8 m))))))
 
 ; register dereference
