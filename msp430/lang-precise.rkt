@@ -130,13 +130,21 @@
 ; this macro expands into a huge mess which inlines the entire logic of the step function
 (define (step instr r m)
   (match instr
-    [(mov.w src dst) (store16 (load16 src r m) dst r m)]
-    [(mov.b src dst) (store8 (load8 src r m) dst r m)]
+    ; Workaround: because load and store are macros, and store basically
+    ;  evaluates to (memory-set dst val), we need to make sure that src is
+    ;  evaluated first because it might have side effects (autoincrement).
+    ; So we have to wrap with a let expression here, and anywhere that stores a
+    ; value in a destination.
+    ;  The alternate way to solve this problem is to have either load or store
+    ;  be a function, so that racket will evaluate the arguments before
+    ;  "expanding" (calling) the function.
+    [(mov.w src dst) (let ([val (load16 src r m)]) (store16 val dst r m))]
+    [(mov.b src dst) (let ([val (load16 src r m)]) (store8 val dst r m))]
 ;    [(add.w src dst) (store16 (bvadd (load16 src r m) (load16 dst r m)) dst r m)]
 ;    [(add.b src dst) (store8 (bvadd (load8 src r m) (load8 dst r m)) dst r m)]
 
-    [(sub.w src dst) (store16 (do-sub-flags src dst r m load16 mspx->word 16) dst r m)]
-    [(sub.b src dst) (store8 (do-sub-flags src dst r m load8 mspx->byte 8) dst r m)]
+    [(sub.w src dst) (let ([val (do-sub-flags src dst r m load16 mspx->word 16)]) (store16 val dst r m))]
+    [(sub.b src dst) (let ([val (do-sub-flags src dst r m load8 mspx->byte 8)]) (store8 val dst r m))]
 
     ; r1 is the status register. for simplicity, only bit and cmp affect it indirectly
 ;    [(bit.w src dst) (let ([x (bvadd (load16 src r m) (load16 dst r m))])
@@ -149,7 +157,6 @@
 ;                             [z (if (bveq x (mspx-bv 0)) (mspx-bv 2) (mspx-bv 0))]
 ;                             [n (if (bveq (bvand (mspx-bv 128) x) (mspx-bv 128)) (mspx-bv 4) (mspx-bv 0))])
 ;                         (bvand c z n)))]
-    ; extraction for comparison ends up being kind of nasty...
     [(cmp.w src dst) (do-sub-flags src dst r m load16 mspx->word 16)]
     [(cmp.b src dst) (do-sub-flags src dst r m load8 mspx->byte 8)]
 
@@ -173,18 +180,6 @@
           (stepn s (- n 1))
           (void)))))
     
-
-; Debug test code
-; TODO: turn into actual rackunit tests
-(define regs (vector (mspx-bv 0) (mspx-bv 0) (mspx-bv 0) (mspx-bv 0)))
-(define mem (vector (mspx-bv 0) (mspx-bv 0) (mspx-bv 0) (mspx-bv 0)))
-(define instrs (vector (mov.w (imm (mspx-bv 37)) (idx 1 (mspx-bv 0)))
-                         (mov.w (imm (mspx-bv 40)) (reg 3))
-                         (sub.w (idx 1 (mspx-bv 0)) (reg 3))
-                         (cmp.w (reg 3) (imm (mspx-bv 3)))
-                         (sub.w (ai 3) (reg 1))))
-(define s (state instrs regs mem (box #t)))
-; (stepn s 4)
 
 ; to implement:
 ; semantics for all addressing modes
