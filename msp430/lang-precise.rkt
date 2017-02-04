@@ -69,9 +69,9 @@
                   ; sym treated like abs (difference handled by decoder)
                   [(sym addr) (memory-refx memory addr)]
 
-                  [(ind r)    (memory-refx memory (register-refx registers r))]
+                  [(ind r)    (memory-refx memory (register-ref registers r))]
                   ; Same as above but step needs to also inc val referenced by r
-                  [(ai r)     (begin0 (memory-refx memory (register-refx registers r)) (register-setx! registers r (bvadd (register-refx registers r) width)))]
+                  [(ai r)     (begin0 (memory-refx memory (register-ref registers r)) (register-set! registers r (bvadd (register-ref registers r) width)))]
 
                   [(idx r i)  (memory-refx memory (bvadd (register-ref registers r) i))])))]
     [(_ [id register-refx register-setx! memory-refx truncx width] more ...)
@@ -124,7 +124,6 @@
                           (and (bvsge srcx (word 0)) (bvslt dstx (word 0)) (bvsge xx (word 0))))
                       (mspx-bv 256) (mspx-bv 0))])
        (begin (update-flags c z n v r) x)))
-
 
 ; interpreter step function
 ; this macro expands into a huge mess which inlines the entire logic of the step function
@@ -198,3 +197,22 @@
 ; want to eventually be able to run on hardware
 ;   that depends on encoder / decoder / setting up MSP hardware
 ;   mspdebug from racket???
+
+
+
+; Symbolic tests for AI:
+;  - Check that AI loads same value, and result register is X + 2
+;  - AI should be able to load any number if that number was stored in memory
+;  - AI should load a 8 bit value for 8 bit op, 16 bit value for 16 bit op
+;  - Should step by +1 for 8 bit op, +2 for 16 bit (does it mask to even
+;  addresses here? test!)
+;  - 
+
+; To test:
+; - load and store (incl. AI -- make a different thing -- one set without AI and
+; one with AI)
+;    - should respect truncation and width
+; - store-load tests
+; - test all operands
+; - get rest of instructions
+; - after that start writing tests for the rest of the instructions
