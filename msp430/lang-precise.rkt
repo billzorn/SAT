@@ -27,11 +27,11 @@
 (define-instruction
   [mov.w fmt1] [mov.b fmt1]
   [add.w fmt1] [add.b fmt1]
-  ; no addc yet
+  [addc.w fmt1] [addc.b fmt1]
   [sub.w fmt1] [sub.b fmt1]
-  ; no subc yet
+  [subc.w fmt1] [subc.b fmt1]
   [cmp.w fmt1] [cmp.b fmt1]
-  ; no dadd yet
+  [dadd.w fmt1] [dadd.b fmt1]
   [bit.w fmt1] [bit.b fmt1]
   [bic.w fmt1] [bic.b fmt1]
   [bis.w fmt1] [bis.b fmt1]
@@ -39,14 +39,21 @@
   [and.w fmt1] [and.b fmt1]
 
   [push.w fmt2] [push.b fmt2]
-  ; no rrc yet
+  [rrc.w fmt2] [rrc.b fmt2]
   [rra.w fmt2] [rra.b fmt2]
   [swpb fmt2]
   [sxt fmt2]
-  ; no call yet
-  ; no reti yet
+  [call fmt2]
 
-  ; need jumps somewhere
+  ; [reti]
+  ; [jmp]
+  ; [jc]
+  ; [jnc]
+  ; [jz]
+  ; [jnz]
+  ; [jn]
+  ; [jge]
+  ; [jl]
   )
 
 ; representation of complete state
@@ -106,24 +113,72 @@
 ; Macro for updating the status (flags) register based on the results of some
 ; computation
 (define-syntax-rule (update-flags c z n v regs)
-  (register-set! regs 2 (bvor (bvand (register-ref regs 2) (bvnot (mspx-bv #b10000111))) c z n v) ))
+  (register-set! regs 2 
+    (bvor (bvand 
+            (register-ref regs 2) 
+            (bvnot (mspx-bv #b10000111))) 
+          (mspx-bv (if c #b00000001 0))
+          (mspx-bv (if z #b00000010 0))
+          (mspx-bv (if n #b00000100 0))
+          (mspx-bv (if v #b10000000 0)))))
 
-; Macro for doing a subtraction and then updating the flags (returns the result
+; Parameterizing these things on width, so that we can dispatch to the right one
+; from other macros.
+; Widths given in bits
+
+(define-syntax-rule (mspx->. width x)
+  (case width
+    [(8) (mspx->byte x)]
+    [(16) (mspx->word x)]
+    [(20) x]))
+
+(define-syntax-rule (load. width src r m)
+  (case width
+    [(8) (load8 src r m)]
+    [(16) (load16 src r m)]
+    ))
+
+; Macro for doing an operation and then updating the flags (returns the result
 ; of subtraction for possible use)
-(define-syntax-rule (do-sub-flags src dst r m loadx mspx->width width)
-  (let* ([srcval (loadx src r m)]
-         [dstval (loadx dst r m)]
-         [x (bvsub dstval srcval)]
-         [srcx (mspx->width srcval)]
-         [dstx (mspx->width dstval)]
-         [xx (mspx->width x)]
-         [c (if (bit-set? x width) (mspx-bv 1) (mspx-bv 0))]
-         [z (if (bveq x (mspx-bv 0)) (mspx-bv 2) (mspx-bv 0))]
-         [n (if (bvsgt srcx dstx) (mspx-bv 4) (mspx-bv 0))]
-         [v (if (or (and (bvslt srcx (word 0)) (bvsge dstx (word 0)) (bvslt xx (word 0)))
-                          (and (bvsge srcx (word 0)) (bvslt dstx (word 0)) (bvsge xx (word 0))))
-                      (mspx-bv 256) (mspx-bv 0))])
-       (begin (update-flags c z n v r) x)))
+; Flag order is N Z C V
+(define-syntax do-flags.
+  (syntax-rules ()
+    [(do-flags. width src dst r m [sv sv. dv dv. x x.] expr n-expr z-expr c-expr v-expr)
+      (let* ([sv (load. width src r m)]
+             [dv (load. width dst r m)]
+             [x expr]
+             [sv. (mspx->. width sv)]
+             [dv. (mspx->. width dv)]
+             [x. (mspx->. width x)]
+             [n n-expr]
+             [z z-expr]
+             [c c-expr]
+             [v v-expr])
+           (begin (update-flags c z n v r) x))]
+      [(do-flags. width src dst r m [sv sv. dv dv. x x.] expr c-expr v-expr)
+       (do-flags. width src dst r m [sv sv. dv dv. x x.] expr (bvslt x (mspx-bv 0)) (bveq x (mspx-bv 0)) c-expr v-expr)]))
+
+(define-syntax-rule (do-sub-flags. width src dst r m)
+  (do-flags. width src dst r m [srcval srcval. dstval dstval. x x.]
+             (bvsub dstval srcval) 
+             (bvslt x (mspx-bv 0)) 
+             (bveq x (mspx-bv 0)) 
+             (bit-set? x width)
+             (or (and (bvslt srcval. (word 0)) (bvsge (bvsgt dstval. (word 0)) (word 0)) (bvslt x. (word 0)))
+                 (and (bvsge srcval. (word 0)) (bvslt (bvsgt dstval. (word 0)) (word 0)) (bvsge x. (word 0))))))
+
+(define-syntax-rule (do-add-flags. width src dst r m)
+  (do-flags. width src dst r m [srcval srcval. dstval dstval. x x.] 
+             (bvadd dstval srcval)
+             (bit-set? x width)
+             (or (and (bvsgt srcval. (word 0)) (bvsgt dstval. (word 0)) (bvslt x. (word 0)))
+                 (and (bvslt srcval. (word 0)) (bvsgt dstval. (word 0)) (bvsgt x. (word 0))))))
+
+(define-syntax-rule (do-xor-flags. width src dst r m)
+      (do-flags. width src dst r m [srcval srcval. dstval dstval. x x.]
+                 (bvxor dstval srcval) 
+                 (not (bveq x (mspx-bv 0)))
+                 (and (bvslt srcval. (word 0)) (bvslt dstval. (word 0)))))
 
 ; interpreter step function
 ; this macro expands into a huge mess which inlines the entire logic of the step function
@@ -138,14 +193,17 @@
     ;  be a function, so that racket will evaluate the arguments before
     ;  "expanding" (calling) the function.
     [(mov.w src dst) (let ([val (load16 src r m)]) (store16 val dst r m))]
-    [(mov.b src dst) (let ([val (load16 src r m)]) (store8 val dst r m))]
-;    [(add.w src dst) (store16 (bvadd (load16 src r m) (load16 dst r m)) dst r m)]
-;    [(add.b src dst) (store8 (bvadd (load8 src r m) (load8 dst r m)) dst r m)]
+    [(mov.b src dst) (let ([val (load8 src r m)]) (store8 val dst r m))]
+    [(add.w src dst) (let ([val (do-add-flags. 16 src dst r m)]) (store16 val dst r m))]
+    [(add.b src dst) (let ([val (do-add-flags.  8 src dst r m)]) (store8 val dst r m))]
+    [(sub.w src dst) (let ([val (do-sub-flags. 16 src dst r m)]) (store16 val dst r m))]
+    [(sub.b src dst) (let ([val (do-sub-flags.  8 src dst r m)]) (store8 val dst r m))]
+    [(xor.w src dst) (let ([val (do-xor-flags. 16 src dst r m)]) (store16 val dst r m))]
+    [(xor.b src dst) (let ([val (do-xor-flags.  8 src dst r m)]) (store8 val dst r m))]
+    [(cmp.w src dst) (do-sub-flags. 16 src dst r m)]
+    [(cmp.b src dst) (do-sub-flags.  8 src dst r m)]
 
-    [(sub.w src dst) (let ([val (do-sub-flags src dst r m load16 mspx->word 16)]) (store16 val dst r m))]
-    [(sub.b src dst) (let ([val (do-sub-flags src dst r m load8 mspx->byte 8)]) (store8 val dst r m))]
-
-    ; r1 is the status register. for simplicity, only bit and cmp affect it indirectly
+    ; r2 is the status register. for simplicity, only bit and cmp affect it indirectly
 ;    [(bit.w src dst) (let ([x (bvadd (load16 src r m) (load16 dst r m))])
 ;                       (let ([c (if (bveq x (mspx-bv 0)) (mspx-bv 0) (mspx-bv 1))]
 ;                             [z (if (bveq x (mspx-bv 0)) (mspx-bv 2) (mspx-bv 0))]
@@ -156,8 +214,6 @@
 ;                             [z (if (bveq x (mspx-bv 0)) (mspx-bv 2) (mspx-bv 0))]
 ;                             [n (if (bveq (bvand (mspx-bv 128) x) (mspx-bv 128)) (mspx-bv 4) (mspx-bv 0))])
 ;                         (bvand c z n)))]
-    [(cmp.w src dst) (do-sub-flags src dst r m load16 mspx->word 16)]
-    [(cmp.b src dst) (do-sub-flags src dst r m load8 mspx->byte 8)]
 
 ;    ; r0 is the stack pointer
 ;    [(push.w src) (let
