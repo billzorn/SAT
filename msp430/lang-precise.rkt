@@ -22,6 +22,7 @@
 (struct instruction () #:transparent)
 (struct fmt1 instruction (op1 op2) #:transparent)
 (struct fmt2 instruction (op1) #:transparent)
+(struct jump instruction (target) #:transparent)
 
 ; actual definitions of instructions
 (define-instruction
@@ -45,7 +46,7 @@
   [sxt fmt2]
   [call fmt2]
 
-  ; [reti]
+  [reti instruction]
   ; [jmp]
   ; [jc]
   ; [jnc]

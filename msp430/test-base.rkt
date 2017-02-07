@@ -48,9 +48,7 @@
      (define-test r rn m mn test-body test-assertion)]
     ; inductive case. create a symbolic operand in an enclosing let statement
     [(define-test/ops r rn m mn mkop op1 op2 ... test-body test-assertion)
-     (let* ([r1 (symbolic-int)]
-            [x1 (symbolic-bv mspx-bits)]
-            [op1 (mkop)]
+     (let* ([op1 (mkop)]
             ; we've created the symbolic op. also bind the result of the inner call so we can look
             ; at the model and evaluate the op if verification failed
             [sol (define-test/ops r rn m mn mkop op2 ... test-body test-assertion)])
