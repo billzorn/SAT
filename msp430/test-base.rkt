@@ -1,6 +1,6 @@
 #lang rosette/safe
 
-(require rosette/lib/synthax "../lib/util.rkt" "../lib/bv.rkt" "lang-simple.rkt")
+(require rosette/lib/synthax "../lib/util.rkt" "../lib/bv.rkt" "lang-base.rkt")
 (require rackunit rackunit/text-ui)
 
 (provide (all-defined-out))
@@ -56,8 +56,59 @@
          (vprintf 2 "    ~a: ~a\n" (quote op1) (evaluate op1 sol)))
        sol)]))
 
-; test settings
+; global test settings
 
 (define test-rn 4)
 (define test-mn 4)
 (set-box! test-verbosity 0)
+
+; test basic language features
+
+(define-syntax-rule (memory-test-case testname testw memory-set! memory-ref mkx mkaddr)
+  (test-case testname
+             ; check that if we store and then load, we get the same thing back
+             (check-unsat?
+              (let ([mem (symbolic-bv-vector mspx-bits test-mn)]
+                    [x mkx]
+                    [addr mkaddr])
+                (memory-set! mem addr x)
+                (let ([f (bveq x (memory-ref mem addr))])
+                  (verify (assert f)))))
+             ; if the operation is less than mspx-bits, check that the high bits are 0 when we load
+             (when (< testw mspx-bits)
+               (check-unsat?
+                (let* ([mem (symbolic-bv-vector mspx-bits test-mn)]
+                       [addr mkaddr]
+                       [f (bveq (extract (- mspx-bits 1) testw (memory-ref mem addr)) (bv 0 (- mspx-bits testw)))])
+                  (verify (assert f)))))
+             ))
+
+(define-test-suite ts-base
+
+  ; make sure current-bitwidth is 20 or more (something like that?) or this will time out
+  (test-case "addr->integer"
+             (check-unsat?
+              (let* ([x (symbolic-bv mspx-bits)]
+                     [f (bveq (mask1 x) (bvshl (integer->bitvector (addr->integer x) mspx-bv?) (mspx-bv 1)))])
+                (verify (assert f)))))
+
+  (memory-test-case "memory16" 16 memory-set16! memory-ref16
+                    (word->mspx (symbolic-bv word-bits))
+                    (symbolic-bv mspx-bits))
+  
+  (memory-test-case "memory8" 8 memory-set8! memory-ref8
+                    (byte->mspx (symbolic-bv byte-bits))
+                    (symbolic-bv mspx-bits))
+
+  (memory-test-case "register20" 20 register-set! register-ref
+                    (symbolic-bv mspx-bits)
+                    (symbolic-int))
+
+  (memory-test-case "register16" 16 register-set16! register-ref16
+                    (word->mspx (symbolic-bv word-bits))
+                    (symbolic-int))
+  
+  (memory-test-case "register8" 8 register-set8! register-ref8
+                    (byte->mspx (symbolic-bv byte-bits))
+                    (symbolic-int))            
+  )

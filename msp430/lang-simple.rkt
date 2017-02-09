@@ -4,8 +4,6 @@
 
 (provide (except-out (all-defined-out) define-load-syntax define-store-syntax))
 
-(current-bitwidth mspx-bits)
-
 ; instruction set representation
 
 ; operands

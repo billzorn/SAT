@@ -15,6 +15,9 @@
 (define mspx-bv? (bitvector mspx-bits))
 (define-syntax-rule (mspx-bv x) (bv x mspx-bits))
 
+; use 20 bits all the time
+(current-bitwidth mspx-bits)
+
 ; bitwidth conversion
 (define-syntax-rule (byte->word x)
   (concat (bv 0 8) x))
