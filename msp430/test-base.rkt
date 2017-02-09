@@ -13,10 +13,10 @@
 (define-check (check-unsat? model)
   (unless (unsat? model) (fail-check "found a model - expecting unsat")))
 
-(define test-verbosity (box 0))
+(define test-verbosity 0)
 
 (define-syntax-rule (vprintf v s args ...)
-  (when (>= (unbox test-verbosity) v) (printf s args ...)))
+  (when (>= test-verbosity v) (printf s args ...)))
 
 ; main test macros
 
@@ -60,7 +60,7 @@
 
 (define test-rn 4)
 (define test-mn 4)
-(set-box! test-verbosity 0)
+(set! test-verbosity 0)
 
 ; test basic language features
 
@@ -84,7 +84,6 @@
              ))
 
 (define-test-suite ts-base
-
   ; make sure current-bitwidth is 20 or more (something like that?) or this will time out
   (test-case "addr->integer"
              (check-unsat?
@@ -95,20 +94,16 @@
   (memory-test-case "memory16" 16 memory-set16! memory-ref16
                     (word->mspx (symbolic-bv word-bits))
                     (symbolic-bv mspx-bits))
-  
   (memory-test-case "memory8" 8 memory-set8! memory-ref8
                     (byte->mspx (symbolic-bv byte-bits))
                     (symbolic-bv mspx-bits))
-
   (memory-test-case "register20" 20 register-set! register-ref
                     (symbolic-bv mspx-bits)
                     (symbolic-int))
-
   (memory-test-case "register16" 16 register-set16! register-ref16
                     (word->mspx (symbolic-bv word-bits))
                     (symbolic-int))
-  
   (memory-test-case "register8" 8 register-set8! register-ref8
                     (byte->mspx (symbolic-bv byte-bits))
-                    (symbolic-int))            
+                    (symbolic-int))
   )

@@ -155,7 +155,7 @@ test-state
 (printf "let's use some test macros so it isn't such a pain to write all the definitions.\n\n")
 
 (require "../lib/util.rkt" "test-base.rkt")
-(set-box! test-verbosity 2)
+(set! test-verbosity 2)
 (define (mkop)
   (let ([r (symbolic-int)]
         [x (symbolic-bv mspx-bits)])
