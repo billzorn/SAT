@@ -47,19 +47,37 @@
   [call fmt2]
 
   [reti instruction]
-  ; [jmp]
-  ; [jc]
-  ; [jnc]
-  ; [jz]
-  ; [jnz]
-  ; [jn]
-  ; [jge]
-  ; [jl]
+  [jmp jump]
+  [jc jump] [jnc jump]
+  [jz jump] [jnz jump]
+  [jn jump] 
+  [jge jump]
+  [jl jump]
   )
 
 ; representation of complete state
 ; instrs is a vector of instructions representing the program.
 (struct state (instrs r m running) #:transparent)
+
+; Some magic number constants
+; Register alternate names
+(define REG-PC 0)
+(define REG-SP 1)
+(define REG-SR 2)
+(define REG-CG 3)
+(define REG-CG1 2)
+(define REG-CG2 3)
+
+; Flag register bitmasks
+(define FLAG-C #b00000001)
+(define FLAG-Z #b00000010)
+(define FLAG-N #b00000100)
+(define FLAG-V #b10000000)
+
+; Memory Accuracy TODOs:
+; (mostly awaiting HW-accurate memory model)
+; - PC (r0) needs to be 2-word aligned, AI by 2 only
+; - Writes to r2 should be dropped
 
 ; master load macro
 (define-syntax (define-load-syntax stx)
@@ -114,14 +132,14 @@
 ; Macro for updating the status (flags) register based on the results of some
 ; computation
 (define-syntax-rule (update-flags c z n v regs)
-  (register-set! regs 2 
+  (register-set! regs REG-SR
     (bvor (bvand 
-            (register-ref regs 2) 
+            (register-ref regs REG-SR) 
             (bvnot (mspx-bv #b10000111))) 
-          (mspx-bv (if c #b00000001 0))
-          (mspx-bv (if z #b00000010 0))
-          (mspx-bv (if n #b00000100 0))
-          (mspx-bv (if v #b10000000 0)))))
+          (mspx-bv (if c FLAG-C 0))
+          (mspx-bv (if z FLAG-Z 0))
+          (mspx-bv (if n FLAG-N 0))
+          (mspx-bv (if v FLAG-V 0)))))
 
 ; Parameterizing these things on width, so that we can dispatch to the right one
 ; from other macros.
@@ -130,17 +148,38 @@
 (define-syntax-rule (mspx->. width x)
   (case width
     [(8) (mspx->byte x)]
-    [(16) (mspx->word x)]
-    [(20) x]))
+    [(16) (mspx->word x)]))
 
 (define-syntax-rule (load. width src r m)
   (case width
     [(8) (load8 src r m)]
-    [(16) (load16 src r m)]
-    ))
+    [(16) (load16 src r m)]))
+
+(define-syntax-rule (trunc. width x)
+  (case width
+    [(8) (trunc8 x)]
+    [(16) (trunc16 x)]))
+
+(define-syntax-rule (register-ref. width r n)
+  (case width
+    [(8) (register-ref8 r n)]
+    [(16) (register-ref16 r n)]))
+
+; Binary Coded Decimal arithmetic
+; Add: a and b are mspx-bvs
+; TODO: this may not handle invalid BCD operands the same way as the hardware!
+; tests are needed
+(define (bvdadd a b)
+  (let* ([t1 (bvadd a (mspx-bv #x06666))]
+         [t2 (bvxor t1 b)]
+         [t1 (bvadd t1 b)]
+         [t2 (bvxor t1 t2)]
+         [t2 (bvand (bvnot t2) (mspx-bv #x11110))]
+         [t2 (bvor (bvashr t2 (mspx-bv 2)) (bvashr t2 (mspx-bv 3)))])
+         (bvsub t1 t2)))
 
 ; Macro for doing an operation and then updating the flags (returns the result
-; of subtraction for possible use)
+; of the expression for possible use)
 ; Flag order is N Z C V
 (define-syntax do-flags.
   (syntax-rules ()
@@ -159,6 +198,21 @@
       [(do-flags. width src dst r m [sv sv. dv dv. x x.] expr c-expr v-expr)
        (do-flags. width src dst r m [sv sv. dv dv. x x.] expr (bvslt x (mspx-bv 0)) (bveq x (mspx-bv 0)) c-expr v-expr)]))
 
+(define-syntax-rule (do-add-flags. width src dst r m)
+  (do-flags. width src dst r m [srcval srcval. dstval dstval. x x.] 
+             (bvadd dstval srcval)
+             (bit-set? x width)
+             (or (and (bvsgt srcval. (word 0)) (bvsgt dstval. (word 0)) (bvslt x. (word 0)))
+                 (and (bvslt srcval. (word 0)) (bvsgt dstval. (word 0)) (bvsgt x. (word 0))))))
+
+(define-syntax-rule (do-addc-flags. width src dst r m)
+  (do-flags. width src dst r m [srcval srcval. dstval dstval. x x.] 
+             (bvadd dstval srcval (mspx-bv (if (bit-set? (register-ref. width r REG-SR) FLAG-C) 1 0)))
+             (bit-set? x width)
+             ; TODO double check ↓
+             (or (and (bvsgt srcval. (word 0)) (bvsgt dstval. (word 0)) (bvslt x. (word 0)))
+                 (and (bvslt srcval. (word 0)) (bvsgt dstval. (word 0)) (bvsgt x. (word 0))))))
+
 (define-syntax-rule (do-sub-flags. width src dst r m)
   (do-flags. width src dst r m [srcval srcval. dstval dstval. x x.]
              (bvsub dstval srcval) 
@@ -168,12 +222,28 @@
              (or (and (bvslt srcval. (word 0)) (bvsge (bvsgt dstval. (word 0)) (word 0)) (bvslt x. (word 0)))
                  (and (bvsge srcval. (word 0)) (bvslt (bvsgt dstval. (word 0)) (word 0)) (bvsge x. (word 0))))))
 
-(define-syntax-rule (do-add-flags. width src dst r m)
-  (do-flags. width src dst r m [srcval srcval. dstval dstval. x x.] 
-             (bvadd dstval srcval)
+(define-syntax-rule (do-subc-flags. width src dst r m)
+  (do-flags. width src dst r m [srcval srcval. dstval dstval. x x.]
+             (bvadd dstval (bvnot srcval) (mspx-bv (if (bit-set? (register-ref. width r REG-SR) FLAG-C) 1 0))) 
+             (bvslt x (mspx-bv 0)) 
+             (bveq x (mspx-bv 0)) 
              (bit-set? x width)
-             (or (and (bvsgt srcval. (word 0)) (bvsgt dstval. (word 0)) (bvslt x. (word 0)))
-                 (and (bvslt srcval. (word 0)) (bvsgt dstval. (word 0)) (bvsgt x. (word 0))))))
+             ; TODO what is hardware behavior for these flags? Manual is unclear
+             ; how overflow is calculated, is the carry bit factored in? Is it
+             ; logically part of src or dst in the behavior description?
+             (or (and (bvslt srcval. (word 0)) (bvsge (bvsgt dstval. (word 0)) (word 0)) (bvslt x. (word 0)))
+                 (and (bvsge srcval. (word 0)) (bvslt (bvsgt dstval. (word 0)) (word 0)) (bvsge x. (word 0))))))
+
+(define-syntax-rule (do-dadd-flags. width src dst r m)
+      (do-flags. width src dst r m [srcval srcval. dstval dstval. x x.]
+                 (bvdadd srcval dstval)
+                 ((bit-set? x (- width 1)))
+                 (bveq x. (mspx-bv 0))
+                 ; Manual defines carry flag as being set when "BCD result is too large",
+                 ; so we'll check if there are any bits set above the width of the operation
+                 (bvsgt (bvand (trunc. width (mspx-bv -1)) x) (mspx-bv 0))
+                 ; V flag is formally undefined in manual. Need to do some HW tests to find actual behavior.
+                 #f)) 
 
 (define-syntax-rule (do-xor-flags. width src dst r m)
       (do-flags. width src dst r m [srcval srcval. dstval dstval. x x.]
@@ -195,14 +265,27 @@
     ;  "expanding" (calling) the function.
     [(mov.w src dst) (let ([val (load16 src r m)]) (store16 val dst r m))]
     [(mov.b src dst) (let ([val (load8 src r m)]) (store8 val dst r m))]
+
     [(add.w src dst) (let ([val (do-add-flags. 16 src dst r m)]) (store16 val dst r m))]
     [(add.b src dst) (let ([val (do-add-flags.  8 src dst r m)]) (store8 val dst r m))]
+
+    [(addc.w src dst) (let ([val (do-addc-flags. 16 src dst r m)]) (store16 val dst r m))]
+    [(addc.b src dst) (let ([val (do-addc-flags.  8 src dst r m)]) (store8 val dst r m))]
+
     [(sub.w src dst) (let ([val (do-sub-flags. 16 src dst r m)]) (store16 val dst r m))]
     [(sub.b src dst) (let ([val (do-sub-flags.  8 src dst r m)]) (store8 val dst r m))]
-    [(xor.w src dst) (let ([val (do-xor-flags. 16 src dst r m)]) (store16 val dst r m))]
-    [(xor.b src dst) (let ([val (do-xor-flags.  8 src dst r m)]) (store8 val dst r m))]
+
+    [(subc.w src dst) (let ([val (do-subc-flags. 16 src dst r m)]) (store16 val dst r m))]
+    [(subc.b src dst) (let ([val (do-subc-flags.  8 src dst r m)]) (store8 val dst r m))]
+
     [(cmp.w src dst) (do-sub-flags. 16 src dst r m)]
     [(cmp.b src dst) (do-sub-flags.  8 src dst r m)]
+
+    [(dadd.w src dst) (let ([val (do-dadd-flags. 16 src dst r m)]) (store16 val dst r m))]
+    [(dadd.b src dst) (let ([val (do-dadd-flags.  8 src dst r m)]) (store8 val dst r m))]
+
+    [(xor.w src dst) (let ([val (do-xor-flags. 16 src dst r m)]) (store16 val dst r m))]
+    [(xor.b src dst) (let ([val (do-xor-flags.  8 src dst r m)]) (store8 val dst r m))]
 
     ; r2 is the status register. for simplicity, only bit and cmp affect it indirectly
 ;    [(bit.w src dst) (let ([x (bvadd (load16 src r m) (load16 dst r m))])
@@ -225,12 +308,12 @@
 
 (define (stepn s n)
   ; s is a state, n is the number of steps
-  (let ([ip (bitvector->integer (register-ref (state-r s) 0))])
+  (let ([ip (bitvector->integer (register-ref (state-r s) REG-PC))])
       (begin 
         ; Compute result of instruction at instruction ptr
         (step (vector-ref (state-instrs s) ip) (state-r s) (state-m s))
         ; Update instruction ptr
-        (register-set! (state-r s) 0 (bvadd (mspx-bv (+ ip 1))))
+        (register-set! (state-r s) REG-PC (bvadd (mspx-bv (+ ip 1))))
         ; Do the next step
         (if (> n 1) 
           (stepn s (- n 1))
