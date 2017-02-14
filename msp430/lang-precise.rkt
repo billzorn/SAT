@@ -69,10 +69,10 @@
 (define REG/CG2 3)
 
 ; Flag register bitmasks
-(define FLAG/C #b00000001)
-(define FLAG/Z #b00000010)
-(define FLAG/N #b00000100)
-(define FLAG/V #b10000000)
+(define FLAG/C (mspx-bv #b00000001))
+(define FLAG/Z (mspx-bv #b00000010))
+(define FLAG/N (mspx-bv #b00000100))
+(define FLAG/V (mspx-bv #b10000000))
 
 ; Memory Accuracy TODOs:
 ; (mostly awaiting HW-accurate memory model)
@@ -129,6 +129,9 @@
   [store16 register-set16! memory-set16!]
   [store8 register-set8! memory-set8!])
 
+(define-syntax-rule (flag-set? r f)
+  (not (bveq (bvand (register-ref r REG/SR) f) (mspx-bv 0))))
+
 ; Macro for updating the status (flags) register based on the results of some
 ; computation
 (define-syntax-rule (update-flags c z n v regs)
@@ -136,10 +139,10 @@
     (bvor (bvand 
             (register-ref regs REG/SR) 
             (bvnot (mspx-bv #b10000111))) 
-          (mspx-bv (if c FLAG/C 0))
-          (mspx-bv (if z FLAG/Z 0))
-          (mspx-bv (if n FLAG/N 0))
-          (mspx-bv (if v FLAG/V 0)))))
+          (if c FLAG/C (mspx-bv 0))
+          (if z FLAG/Z (mspx-bv 0))
+          (if n FLAG/N (mspx-bv 0))
+          (if v FLAG/V (mspx-bv 0)))))
 
 ; Parameterizing these things on width, so that we can dispatch to the right one
 ; from other macros.
@@ -224,7 +227,7 @@
 
 (define-syntax-rule (addc/flags! width src dst r m)
   (op/flags! width src dst r m [srcval srcval. dstval dstval. x x.] 
-             (bvadd dstval srcval (mspx-bv (if (bit-set? (register-ref. width r REG/SR) FLAG/C) 1 0)))
+             (bvadd dstval srcval (mspx-bv (if (flag-set? r FLAG/C) 1 0)))
              (bit-set? x width)
              ; TODO double check ↓
              (or (and (bvsgt srcval. (word 0)) (bvsgt dstval. (word 0)) (bvslt x. (word 0)))
@@ -241,7 +244,7 @@
 
 (define-syntax-rule (subc/flags! width src dst r m)
   (op/flags! width src dst r m [srcval srcval. dstval dstval. x x.]
-             (bvadd dstval (bvnot srcval) (mspx-bv (if (bit-set? (register-ref. width r REG/SR) FLAG/C) 1 0))) 
+             (bvadd dstval (bvnot srcval) (mspx-bv (if (flag-set? r FLAG/C) 1 0))) 
              (bvslt x (mspx-bv 0)) 
              (bveq x (mspx-bv 0)) 
              (bit-set? x width)
@@ -282,7 +285,7 @@
 
 (define-syntax-rule (rrc/flags! width dst r m)
       (op/flags! width dst r m [dstval dstval. x x.]
-                 (bvadd (bvashr dstval (mspx-bv 1)) (mspx-bv (if (bit-set? (register-ref. width r REG/SR) FLAG/C) (expt 2 (- width 1)) 0)))
+                 (bvadd (bvashr dstval (mspx-bv 1)) (mspx-bv (if (flag-set? r FLAG/C) (expt 2 (- width 1)) 0)))
                  (bveq (extract 0 0 dstval) (bv -1 1))
                  #f))
 
@@ -357,16 +360,31 @@
     
     [(sxt dst) (let ([val (sxt/flags! dst r m)]) (store16 val dst r m))]
 
+    ; call
+    ; reti
+
+    [(jmp target) (register-set! r REG/PC target )]
+
+    [(jc target) (if (flag-set? r FLAG/C) (register-set! r REG/PC target) (void))]
+    [(jnc target) (if (not (flag-set? r FLAG/C)) (register-set! r REG/PC target) (void))]
+
+    [(jz target) (if (flag-set? r FLAG/Z) (register-set! r REG/PC target) (void))]
+    [(jnz target) (if (not (flag-set? r FLAG/Z)) (register-set! r REG/PC target) (void))]
+
+    [(jn target) (if (flag-set? r FLAG/N) (register-set! r REG/PC target) (void))]
+
+    [(jl target) (if (xor (flag-set? r FLAG/N) (flag-set? r FLAG/V)) (register-set! r REG/PC target) (void))]
+    [(jge target) (if (not (xor (flag-set? r FLAG/N) (flag-set? r FLAG/V))) (register-set! r REG/PC target) (void))]
     ))
 
 (define (stepn s n)
   ; s is a state, n is the number of steps
   (let ([ip (bitvector->integer (register-ref (state-r s) REG/PC))])
       (begin 
-        ; Compute result of instruction at instruction ptr
-        (step (vector-ref (state-instrs s) ip) (state-r s) (state-m s))
         ; Update instruction ptr
         (register-set! (state-r s) REG/PC (bvadd (mspx-bv (+ ip 1))))
+        ; Compute result of instruction at old value of instruction ptr
+        (step (vector-ref (state-instrs s) ip) (state-r s) (state-m s))
         ; Do the next step
         (if (> n 1) 
           (stepn s (- n 1))
