@@ -39,3 +39,5 @@
          [two-to-n (bv (expt 2 n) w)])
     (not (bveq (bvand x two-to-n) (bv 0 w)))))
 
+(define-syntax-rule (bits-set? x b)
+  (bveq (bvand x b) b ))

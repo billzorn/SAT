@@ -1,9 +1,15 @@
 #lang rosette/safe
 
-(require rosette/lib/synthax "../lib/util.rkt" "../lib/bv.rkt" "lang-base.rkt")
-(require rackunit rackunit/text-ui)
+(require rosette/lib/synthax "../lib/util.rkt" "../lib/bv.rkt" "lang-base.rkt" "flags.rkt")
+(require racket/vector rackunit rackunit/text-ui)
 
 (provide (all-defined-out))
+
+; global test settings
+
+(define test-rn 4)
+(define test-mn 4)
+(define test-verbosity 0)
 
 ; test suite infrastructure courtesy of rackunit
 
@@ -12,8 +18,6 @@
 
 (define-check (check-unsat? model)
   (unless (unsat? model) (fail-check "found a model - expecting unsat")))
-
-(define test-verbosity 0)
 
 (define-syntax-rule (vprintf v s args ...)
   (when (>= test-verbosity v) (printf s args ...)))
@@ -44,24 +48,81 @@
 (define-syntax define-test/ops
   (syntax-rules ()
     ; no ops are left, pass to base case
-    [(define-test/ops r rn m mn mkop test-body test-assertion)
+    [(define-test/ops r rn m mn test-body test-assertion)
      (define-test r rn m mn test-body test-assertion)]
     ; inductive case. create a symbolic operand in an enclosing let statement
-    [(define-test/ops r rn m mn mkop op1 op2 ... test-body test-assertion)
-     (let* ([op1 (mkop)]
+    [(define-test/ops r rn m mn [op1 mkop1] [op2 mkop2] ... test-body test-assertion)
+     (let* ([op1 (mkop1)]
             ; we've created the symbolic op. also bind the result of the inner call so we can look
             ; at the model and evaluate the op if verification failed
-            [sol (define-test/ops r rn m mn mkop op2 ... test-body test-assertion)])
+            [sol (define-test/ops r rn m mn [op2 mkop2] ... test-body test-assertion)])
        (unless (unsat? sol)
          (vprintf 2 "    ~a: ~a\n" (quote op1) (evaluate op1 sol)))
        sol)]))
 
-; global test settings
+; flags are hard
+(define-syntax define-test/flags
+  (syntax-rules ()
+    ; fmt1
+    [(define-test/flags r rn m mn [op1 mkop1] [op2 mkop2] load src dst res res-expr res. res.-expr test-body flag-assertion)
+     (define-test/ops r rn m mn [op1 mkop1] [op2 mkop2]
+       (begin
+         ; copy state vectors so that the reference calculation won't interfere with test execution
+         (define r-copy (vector-copy r))
+         (define m-copy (vector-copy m))
+         ; define input and result names
+         (define src (load op1 r-copy m-copy))
+         (define dst (load op2 r-copy m-copy))
+         (define res res-expr)
+         (define res. res.-expr)
+         ; run test
+         test-body)
+       flag-assertion)]))
 
-(define test-rn 4)
-(define test-mn 4)
-(set! test-verbosity 0)
+; try with a function
+(define (test-flags-fmt1 #:run-state run-state
+                         #:mk-assert mk-assert
+                         #:width [w 16]
+                         #:mkop1 mkop1
+                         #:mkop2 mkop2
+                         #:load. load.
+                         #:reference-computation reference-computation
+                         #:get-flags get-flags
+                         #:rn [rn test-rn]
+                         #:mn [mn test-mn])
+  (define-test/ops r rn m mn [op1 mkop1] [op2 mkop2]
+    (begin
+      ; copy state vectors so that the reference calculation won't interfere with test execution
+      (define r-copy (vector-copy r))
+      (define m-copy (vector-copy m))
+      ; define input and result names
+      (define reference-flags (get-flags r-copy))
+      (define src (load. w op1 r-copy m-copy))
+      (define dst (load. w op2 r-copy m-copy))
+      (define res (reference-computation src dst reference-flags))
+      (define res. (trunc. w res))
+      ; run the tests
+      (run-state op1 op2 r m)
+      ; something like this
+;      (define running (box #t))
+;      (define test-state (state
+;                          (halt (list (instr op1 op2)))
+;                          r m running))
+;      (stepn test-state 2)
+;      (assert (not (unbox running)))
+      ; get the flags
+      (define flags (get-flags r)))
+    ; this assertion shouldn't actually be constructed until inside the body of the define-test/ops
+    (mk-assert src dst res res. flags)))
 
+; global flag rules
+(define (reference-computation-sub src dst flags)
+  (bvsub dst src))
+
+(define (mk-assert-sub-z src dst res res. flags)
+  (iff (bveq res. (mspx-bv 0)) (bits-set? flags FLAG/Z)))
+
+  
 ; test basic language features
 
 (define-syntax-rule (memory-test-case testname testw memory-set! memory-ref mkx mkaddr)

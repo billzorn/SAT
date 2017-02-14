@@ -155,14 +155,13 @@ test-state
 (printf "let's use some test macros so it isn't such a pain to write all the definitions.\n\n")
 
 (require "../lib/util.rkt" "test-base.rkt")
-(set! test-verbosity 2)
 (define (mkop)
   (let ([r (symbolic-int)]
         [x (symbolic-bv mspx-bits)])
     (choose (reg r) (abs x) (idx r x))))
 
 (check-unsat?
- (define-test/ops r 4 m 4 mkop op1 op2
+ (define-test/ops r 4 m 4 [op1 mkop] [op2 mkop]
    (begin
      (define-symbolic v1/immx mspx-bv?)
      (define op1/imm (choose op1 (imm v1/immx)))

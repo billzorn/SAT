@@ -64,6 +64,10 @@
 ; representation of complete state
 (struct state (entry-block r m running) #:transparent)
 
+; magic register numbers
+(define REG/SP 0)
+(define REG/SR 1)
+
 ; addressing mode matches as macros
 
 ; master load macro
@@ -105,8 +109,11 @@
   [store16 register-set16! memory-set16!]
   [store8 register-set8! memory-set8!])
 
-(define SP 0)
-(define SR 1)
+; limited parametric
+(define-syntax-rule (load. width src r m)
+  (case width
+    [(8) (load8 src r m)]
+    [(16) (load16 src r m)]))
 
 ; interpreter step function
 ; this macro expands into a huge mess which inlines the entire logic of the step function
@@ -132,7 +139,7 @@
                                  [v (if (or (and (bvslt src16 (word 0)) (bvsge dst16 (word 0)) (bvslt x16 (word 0)))
                                             (and (bvsge src16 (word 0)) (bvslt dst16 (word 0)) (bvsge x16 (word 0))))
                                         (mspx-bv 256) (mspx-bv 0))])
-                         (register-set! r SR (bvor c z n v))))))]
+                         (register-set! r REG/SR (bvor c z n v))))))]
     [(cmp.b src dst) (let ([srcval (load8 src r m)]
                            [dstval (load8 dst r m)])
                        (let ([x (bvsub dstval srcval)])
@@ -145,17 +152,17 @@
                                  [v (if (or (and (bvslt src8 (byte 0)) (bvsge dst8 (byte 0)) (bvslt x8 (byte 0)))
                                             (and (bvsge src8 (byte 0)) (bvslt dst8 (byte 0)) (bvsge x8 (byte 0))))
                                         (mspx-bv 256) (mspx-bv 0))])
-                         (register-set! r SR (bvor c z n v))))))]
+                         (register-set! r REG/SR (bvor c z n v))))))]
     [(bit.w src dst) (let ([x (bvand (load16 src r m) (load16 dst r m))])
                        (let ([c (if (bveq x (mspx-bv 0)) (mspx-bv 0) (mspx-bv 1))]
                              [z (if (bveq x (mspx-bv 0)) (mspx-bv 2) (mspx-bv 0))]
                              [n (if (bveq (bvand (mspx-bv 32768) x) (mspx-bv 32768)) (mspx-bv 4) (mspx-bv 0))])
-                         (register-set! r SR (bvor c z n))))]
+                         (register-set! r REG/SR (bvor c z n))))]
     [(bit.b src dst) (let ([x (bvand (load8 src r m) (load8 dst r m))])
                        (let ([c (if (bveq x (mspx-bv 0)) (mspx-bv 0) (mspx-bv 1))]
                              [z (if (bveq x (mspx-bv 0)) (mspx-bv 2) (mspx-bv 0))]
                              [n (if (bveq (bvand (mspx-bv 128) x) (mspx-bv 128)) (mspx-bv 4) (mspx-bv 0))])
-                         (register-set! r SR (bvor c z n))))]
+                         (register-set! r REG/SR (bvor c z n))))]
     [(bic.w src dst) (store16 (bvand (bvnot (load16 src r m)) (load16 dst r m)) dst r m)]
     [(bic.b src dst) (store8 (bvand (bvnot (load8 src r m)) (load8 dst r m)) dst r m)]
     [(bis.w src dst) (store16 (bvor (load16 src r m) (load16 dst r m)) dst r m)]
@@ -166,18 +173,18 @@
     [(and.b src dst) (store8 (bvand (load8 src r m) (load8 dst r m)) dst r m)]
 
     ; mask off the first bit of SP, push / pop only deal with even SP addresses
-    [(push.w src) (let ([sp (bvsub (mask1 (register-ref r SP)) (mspx-bv 2))])
+    [(push.w src) (let ([sp (bvsub (mask1 (register-ref r REG/SP)) (mspx-bv 2))])
                     (memory-set16! m sp (load16 src r m))
-                    (register-set! r SP sp))]
-    [(push.b src) (let ([sp (bvsub (mask1 (register-ref r SP)) (mspx-bv 2))])
+                    (register-set! r REG/SP sp))]
+    [(push.b src) (let ([sp (bvsub (mask1 (register-ref r REG/SP)) (mspx-bv 2))])
                     (memory-set8! m sp (load8 src r m))
-                    (register-set! r SP sp))]
-    [(pop.w dst) (let ([sp (mask1 (register-ref r SP))])
+                    (register-set! r REG/SP sp))]
+    [(pop.w dst) (let ([sp (mask1 (register-ref r REG/SP))])
                     (store16 (memory-ref16 m sp) dst r m)
-                    (register-set! r SP (bvadd sp (mspx-bv 2))))]
-    [(pop.b dst) (let ([sp (mask1 (register-ref r SP))])
+                    (register-set! r REG/SP (bvadd sp (mspx-bv 2))))]
+    [(pop.b dst) (let ([sp (mask1 (register-ref r REG/SP))])
                     (store8 (memory-ref8 m sp) dst r m)
-                    (register-set! r SP (bvadd sp (mspx-bv 2))))]
+                    (register-set! r REG/SP (bvadd sp (mspx-bv 2))))]
 
     ; effect on carry is not modeled (yet?)
     [(rra.w dst) (let ([srcval (load16 dst r m)])

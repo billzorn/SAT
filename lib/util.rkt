@@ -20,3 +20,6 @@
 (define (symbolic-bv-vector n length)
   (define (symbolic-bv-fixed) (symbolic-bv n))
   (list->vector (tabulate-list symbolic-bv-fixed length)))
+
+(define-syntax-rule (iff x y)
+  (and (implies x y) (implies y x)))

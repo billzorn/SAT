@@ -1,6 +1,6 @@
 #lang rosette/safe
 
-(require rosette/lib/match "../lib/bv.rkt" "lang-base.rkt")
+(require rosette/lib/match "../lib/bv.rkt" "lang-base.rkt" "flags.rkt")
 
 (provide (except-out (all-defined-out) define-load-syntax define-store-syntax))
 
@@ -67,12 +67,6 @@
 (define REG/CG 3)
 (define REG/CG1 2)
 (define REG/CG2 3)
-
-; Flag register bitmasks
-(define FLAG/C (mspx-bv #b00000001))
-(define FLAG/Z (mspx-bv #b00000010))
-(define FLAG/N (mspx-bv #b00000100))
-(define FLAG/V (mspx-bv #b10000000))
 
 ; Memory Accuracy TODOs:
 ; (mostly awaiting HW-accurate memory model)
