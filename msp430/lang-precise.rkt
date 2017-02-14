@@ -148,25 +148,12 @@
 ; from other macros.
 ; Widths given in bits
 
-(define-syntax-rule (mspx->. width x)
-  (case width
-    [(8) (mspx->byte x)]
-    [(16) (mspx->word x)]))
+; some implementations moved to lang-base
 
 (define-syntax-rule (load. width src r m)
   (case width
     [(8) (load8 src r m)]
     [(16) (load16 src r m)]))
-
-(define-syntax-rule (trunc. width x)
-  (case width
-    [(8) (trunc8 x)]
-    [(16) (trunc16 x)]))
-
-(define-syntax-rule (register-ref. width r n)
-  (case width
-    [(8) (register-ref8 r n)]
-    [(16) (register-ref16 r n)]))
 
 ; Binary Coded Decimal arithmetic
 ; Add: a and b are mspx-bvs

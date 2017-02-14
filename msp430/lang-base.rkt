@@ -87,3 +87,20 @@
 
 (define-syntax-rule (register-set8! registers r x)
   (vector-set! registers r (trunc8 x)))
+
+; limited parametric versions
+
+(define-syntax-rule (mspx->. width x)
+  (case width
+    [(8) (mspx->byte x)]
+    [(16) (mspx->word x)]))
+
+(define-syntax-rule (trunc. width x)
+  (case width
+    [(8) (trunc8 x)]
+    [(16) (trunc16 x)]))
+
+(define-syntax-rule (register-ref. width r n)
+  (case width
+    [(8) (register-ref8 r n)]
+    [(16) (register-ref16 r n)]))
