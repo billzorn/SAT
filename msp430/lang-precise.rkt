@@ -360,7 +360,13 @@
     
     [(sxt dst) (let ([val (sxt/flags! dst r m)]) (store16 val dst r m))]
 
-    ; call
+    [(call dst) (let ([tmp (load16 dst r m)]
+                      [sp (bvsub (register-ref16 r REG/SP) 2)]
+                      [pc (register-ref16 r REG/PC)])
+                  (register-set16! r REG/SP sp)
+                  (memory-set16! m sp pc)
+                  (register-set16! r REG/PC tmp))]
+
     ; reti
 
     [(jmp target) (register-set! r REG/PC target )]
