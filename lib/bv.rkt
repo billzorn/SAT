@@ -15,6 +15,10 @@
 (define mspx-bv? (bitvector mspx-bits))
 (define-syntax-rule (mspx-bv x) (bv x mspx-bits))
 
+(define ext-bits 32)
+(define ext-bv? (bitvector ext-bits))
+(define-syntax-rule (ext-bv x) (bv x ext-bits))
+
 ; use 20 bits all the time
 (current-bitwidth mspx-bits)
 
@@ -32,6 +36,21 @@
 (define-syntax-rule (byte->mspx x)
   (concat (bv 0 12) x))
 (define-syntax-rule (mspx->byte x)
+  (extract 7 0 x))
+
+(define-syntax-rule (mspx->ext x)
+  (concat (bv 0 12) x))
+(define-syntax-rule (ext->mspx x)
+  (extract 19 0 x))
+
+(define-syntax-rule (word->ext x)
+  (concat (bv 0 24) x))
+(define-syntax-rule (ext->word x)
+  (extract 7 0 x))
+
+(define-syntax-rule (byte->ext x)
+  (concat (bv 0 24) x))
+(define-syntax-rule (ext->byte x)
   (extract 7 0 x))
 
 (define-syntax-rule (bit-set? x n) 

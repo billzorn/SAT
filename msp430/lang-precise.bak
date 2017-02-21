@@ -279,8 +279,8 @@
              (bvslt x (mspx-bv 0)) 
              (bveq x (mspx-bv 0)) 
              (bit-set? x width)
-             (or (and (bvslt srcval. (bv 0 width)) (bvsge dstval. (bv 0 width)) (bvslt x. (bv 0 width)))
-                 (and (bvsge srcval. (bv 0 width)) (bvslt dstval. (bv 0 width)) (bvsge x. (bv 0 width))))))
+             (or (and (bvslt srcval. (bv 0 width)) (bvsge (bvsgt dstval. (bv 0 width)) (bv 0 width)) (bvslt x. (bv 0 width)))
+                 (and (bvsge srcval. (bv 0 width)) (bvslt (bvsgt dstval. (bv 0 width)) (bv 0 width)) (bvsge x. (bv 0 width))))))
 
 (define-syntax-rule (subc/flags! width src dst r m)
   (op/flags! width src dst r m [srcval srcval. dstval dstval. x x.]
@@ -291,8 +291,8 @@
              ; TODO what is hardware behavior for these flags? Manual is unclear
              ; how overflow is calculated, is the carry bit factored in? Is it
              ; logically part of src or dst in the behavior description?
-             (or (and (bvslt srcval. (bv 0 width)) (bvsge dstval. (bv 0 width)) (bvslt x. (bv 0 width)))
-                 (and (bvsge srcval. (bv 0 width)) (bvslt dstval. (bv 0 width)) (bvsge x. (bv 0 width))))))
+             (or (and (bvslt srcval. (bv 0 width)) (bvsge (bvsgt dstval. (bv 0 width)) (bv 0 width)) (bvslt x. (bv 0 width)))
+                 (and (bvsge srcval. (bv 0 width)) (bvslt (bvsgt dstval. (bv 0 width)) (bv 0 width)) (bvsge x. (bv 0 width))))))
 
 (define-syntax-rule (dadd/flags! width src dst r m)
       (op/flags! width src dst r m [srcval srcval. dstval dstval. x x.]
@@ -358,8 +358,8 @@
              (bvslt x (ext-bv 0)) 
              (bveq x (ext-bv 0)) 
              (bit-set? x width)
-             (or (and (bvslt srcval. (bv 0 width)) (bvsge dstval. (bv 0 width)) (bvslt x. (bv 0 width)))
-                 (and (bvsge srcval. (bv 0 width)) (bvslt dstval. (bv 0 width)) (bvsge x. (bv 0 width))))))
+             (or (and (bvslt srcval. (bv 0 width)) (bvsge (bvsgt dstval. (bv 0 width)) (bv 0 width)) (bvslt x. (bv 0 width)))
+                 (and (bvsge srcval. (bv 0 width)) (bvslt (bvsgt dstval. (bv 0 width)) (bv 0 width)) (bvsge x. (bv 0 width))))))
 
 (define-syntax-rule (subcx/flags! width src dst r m)
   (opx/flags! width src dst r m [srcval srcval. dstval dstval. x x.]
@@ -370,8 +370,8 @@
              ; TODO what is hardware behavior for these flags? Manual is unclear
              ; how overflow is calculated, is the carry bit factored in? Is it
              ; logically part of src or dst in the behavior description?
-             (or (and (bvslt srcval. (bv 0 width)) (bvsge dstval. (bv 0 width)) (bvslt x. (bv 0 width)))
-                 (and (bvsge srcval. (bv 0 width)) (bvslt dstval. (bv 0 width)) (bvsge x. (bv 0 width))))))
+             (or (and (bvslt srcval. (bv 0 width)) (bvsge (bvsgt dstval. (bv 0 width)) (bv 0 width)) (bvslt x. (bv 0 width)))
+                 (and (bvsge srcval. (bv 0 width)) (bvslt (bvsgt dstval. (bv 0 width)) (bv 0 width)) (bvsge x. (bv 0 width))))))
 
 (define-syntax-rule (daddx/flags! width src dst r m)
       (opx/flags! width src dst r m [srcval srcval. dstval dstval. x x.]
@@ -490,29 +490,29 @@
     [(movx.w src dst) (let ([val (load16 src r m)]) (store16 val dst r m))]
     [(movx.b src dst) (let ([val (load8  src r m)]) (store8  val dst r m))]
 
-    [(addx.a src dst) (let ([val (ext->mspx (addx/flags! 20 src dst r m))]) (store20 val dst r m))]
-    [(addx.w src dst) (let ([val (ext->mspx (addx/flags! 16 src dst r m))]) (store16 val dst r m))]
-    [(addx.b src dst) (let ([val (ext->mspx (addx/flags! 8  src dst r m))]) (store8  val dst r m))]
+    [(addx.a src dst) (let ([val (addx/flags! 20 src dst r m)]) (store20 val dst r m))]
+    [(addx.w src dst) (let ([val (addx/flags! 16 src dst r m)]) (store16 val dst r m))]
+    [(addx.b src dst) (let ([val (addx/flags! 8  src dst r m)]) (store8  val dst r m))]
 
-    [(addcx.a src dst) (let ([val (ext->mspx (addcx/flags! 20 src dst r m))]) (store20 val dst r m))]
-    [(addcx.w src dst) (let ([val (ext->mspx (addcx/flags! 16 src dst r m))]) (store16 val dst r m))]
-    [(addcx.b src dst) (let ([val (ext->mspx (addcx/flags! 8  src dst r m))]) (store8  val dst r m))]
+    [(addcx.a src dst) (let ([val (addcx/flags! 20 src dst r m)]) (store20 val dst r m))]
+    [(addcx.w src dst) (let ([val (addcx/flags! 16 src dst r m)]) (store16 val dst r m))]
+    [(addcx.b src dst) (let ([val (addcx/flags! 8  src dst r m)]) (store8  val dst r m))]
 
-    [(subx.a src dst) (let ([val (ext->mspx (subx/flags! 20 src dst r m))]) (store20 val dst r m))]
-    [(subx.w src dst) (let ([val (ext->mspx (subx/flags! 16 src dst r m))]) (store16 val dst r m))]
-    [(subx.b src dst) (let ([val (ext->mspx (subx/flags! 8  src dst r m))]) (store8  val dst r m))]
+    [(subx.a src dst) (let ([val (subx/flags! 20 src dst r m)]) (store20 val dst r m))]
+    [(subx.w src dst) (let ([val (subx/flags! 16 src dst r m)]) (store16 val dst r m))]
+    [(subx.b src dst) (let ([val (subx/flags! 8  src dst r m)]) (store8  val dst r m))]
 
-    [(subcx.a src dst) (let ([val (ext->mspx (subcx/flags! 20 src dst r m))]) (store20 val dst r m))]
-    [(subcx.w src dst) (let ([val (ext->mspx (subcx/flags! 16 src dst r m))]) (store16 val dst r m))]
-    [(subcx.b src dst) (let ([val (ext->mspx (subcx/flags! 8  src dst r m))]) (store8  val dst r m))]
+    [(subcx.a src dst) (let ([val (subcx/flags! 20 src dst r m)]) (store20 val dst r m))]
+    [(subcx.w src dst) (let ([val (subcx/flags! 16 src dst r m)]) (store16 val dst r m))]
+    [(subcx.b src dst) (let ([val (subcx/flags! 8  src dst r m)]) (store8  val dst r m))]
 
     [(cmpx.a src dst) (subcx/flags! 20 src dst r m)]
     [(cmpx.w src dst) (subcx/flags! 16 src dst r m)]
     [(cmpx.b src dst) (subcx/flags!  8 src dst r m)]
 
-    [(daddx.a src dst) (let ([val (ext->mspx (daddx/flags! 20 src dst r m))]) (store20 val dst r m))]
-    [(daddx.w src dst) (let ([val (ext->mspx (daddx/flags! 16 src dst r m))]) (store16 val dst r m))]
-    [(daddx.b src dst) (let ([val (ext->mspx (daddx/flags! 8  src dst r m))]) (store8  val dst r m))]
+    [(daddx.a src dst) (let ([val (daddx/flags! 20 src dst r m)]) (store20 val dst r m))]
+    [(daddx.w src dst) (let ([val (daddx/flags! 16 src dst r m)]) (store16 val dst r m))]
+    [(daddx.b src dst) (let ([val (daddx/flags! 8  src dst r m)]) (store8  val dst r m))]
 
     [(bitx.a src dst) (andx/flags! 20 src dst r m)]
     [(bitx.w src dst) (andx/flags! 16 src dst r m)]
@@ -526,13 +526,13 @@
     [(bisx.w src dst) (store16 (bvor (load16 src r m) (load16 dst r m)) dst r m)]
     [(bisx.b src dst) (store8  (bvor (load8  src r m) (load8  dst r m)) dst r m)]
 
-    [(xorx.a src dst) (let ([val (ext->mspx (xorx/flags! 20 src dst r m))]) (store20 val dst r m))]
-    [(xorx.w src dst) (let ([val (ext->mspx (xorx/flags! 16 src dst r m))]) (store16 val dst r m))]
-    [(xorx.b src dst) (let ([val (ext->mspx (xorx/flags! 8  src dst r m))]) (store8  val dst r m))]
+    [(xorx.a src dst) (let ([val (xorx/flags! 20 src dst r m)]) (store20 val dst r m))]
+    [(xorx.w src dst) (let ([val (xorx/flags! 16 src dst r m)]) (store16 val dst r m))]
+    [(xorx.b src dst) (let ([val (xorx/flags! 8  src dst r m)]) (store8  val dst r m))]
 
-    [(andx.a src dst) (let ([val (ext->mspx (andx/flags! 20 src dst r m))]) (store20 val dst r m))]
-    [(andx.w src dst) (let ([val (ext->mspx (andx/flags! 16 src dst r m))]) (store16 val dst r m))]
-    [(andx.b src dst) (let ([val (ext->mspx (andx/flags! 8  src dst r m))]) (store8  val dst r m))]
+    [(andx.a src dst) (let ([val (andx/flags! 20 src dst r m)]) (store20 val dst r m))]
+    [(andx.w src dst) (let ([val (andx/flags! 16 src dst r m)]) (store16 val dst r m))]
+    [(andx.b src dst) (let ([val (andx/flags! 8  src dst r m)]) (store8  val dst r m))]
     ))
 
 (define (stepn s n)

@@ -17,6 +17,9 @@
 ; execution helper macros
 
 ; truncation and masking
+(define-syntax-rule (trunc20 x)
+  (bvand x (mspx-bv #xfffff)))
+
 (define-syntax-rule (trunc16 x)
   (bvand x (mspx-bv #x0ffff)))
 
@@ -49,6 +52,11 @@
   (bitvector->integer (bvlshr addr (mspx-bv 1))))
 
 ; memory dereference
+(define-syntax-rule (memory-ref20 memory addr)
+  (let ([loword (vector-ref memory (addr->integer addr))]
+        [hiword (vector-ref memory (+ (addr->integer addr) 1))])
+    (bvor (trunc16 loword) (bvshl (and hiword #x0000f) 16))))
+
 (define-syntax-rule (memory-ref16 memory addr)
   (trunc16 (vector-ref memory (addr->integer addr))))
 
@@ -58,6 +66,12 @@
       (high8->low (vector-ref memory (addr->integer addr)))))
 
 ; memory assignment
+(define-syntax-rule (memory-set20! memory addr x)
+  (let ([loword (trunc16 x)]
+        [hiword (bvlshr x 16)])
+      (begin (vector-set! memory (addr->integer addr) (loword))
+             (vector-set! memory (+ (addr->integer addr) 1) (hiword)))))
+
 (define-syntax-rule (memory-set16! memory addr x)
   (vector-set! memory (addr->integer addr) (trunc16 x)))
 
@@ -93,7 +107,14 @@
 (define-syntax-rule (mspx->. width x)
   (case width
     [(8) (mspx->byte x)]
-    [(16) (mspx->word x)]))
+    [(16) (mspx->word x)]
+    [(20) x]))
+
+(define-syntax-rule (ext->. width x)
+  (case width
+    [(8) (ext->byte x)]
+    [(16) (ext->word x)]
+    [(20) (ext->mspx x)]))
 
 (define-syntax-rule (trunc. width x)
   (case width
