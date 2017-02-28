@@ -15,7 +15,7 @@
 (define mspx-bv? (bitvector mspx-bits))
 (define-syntax-rule (mspx-bv x) (bv x mspx-bits))
 
-(define ext-bits 32)
+(define ext-bits 21)
 (define ext-bv? (bitvector ext-bits))
 (define-syntax-rule (ext-bv x) (bv x ext-bits))
 
@@ -39,17 +39,17 @@
   (extract 7 0 x))
 
 (define-syntax-rule (mspx->ext x)
-  (concat (bv 0 12) x))
+  (concat (bv 0 1) x))
 (define-syntax-rule (ext->mspx x)
   (extract 19 0 x))
 
 (define-syntax-rule (word->ext x)
-  (concat (bv 0 24) x))
+  (concat (bv 0 5) x))
 (define-syntax-rule (ext->word x)
-  (extract 7 0 x))
+  (extract 15 0 x))
 
 (define-syntax-rule (byte->ext x)
-  (concat (bv 0 24) x))
+  (concat (bv 0 13) x))
 (define-syntax-rule (ext->byte x)
   (extract 7 0 x))
 

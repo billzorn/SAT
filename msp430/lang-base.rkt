@@ -124,4 +124,23 @@
 (define-syntax-rule (register-ref. width r n)
   (case width
     [(8) (register-ref8 r n)]
-    [(16) (register-ref16 r n)]))
+    [(16) (register-ref16 r n)]
+    [(20) (register-ref r n)]))
+
+(define-syntax-rule (memory-ref. width m n)
+  (case width
+    [(8) (memory-ref8 m n)]
+    [(16) (memory-ref16 m n)]
+    [(20) (memory-ref20 m n)]))
+
+(define-syntax-rule (memory-set.! width m n val)
+  (case width
+    [(8) (memory-set8! m n val)]
+    [(16) (memory-set16! m n val)]
+    [(20) (memory-set20! m n val)]))
+
+(define-syntax-rule (bytewidth. width)
+  (case width
+    [(8) 1]
+    [(16) 2]
+    [(20) 4]))
