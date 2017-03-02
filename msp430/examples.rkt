@@ -1,4 +1,4 @@
-#lang rosette/safe
+#lang rosette
 
 (require rosette/lib/synthax "../lib/bv.rkt" "lang-base.rkt" "lang-simple.rkt")
 
@@ -200,3 +200,47 @@ loop-running
 loop-regs
 loop-mem
 loop-running
+
+; controlling mspdebug devices
+
+(require "../py-mspdebug/shim/mspdebug.rkt")
+
+(define (msp-step-dadd.b/regs mspd r1 r2 v1 v2)
+  (assert (and (< 3 r1) (< r1 16)))
+  (assert (and (< 3 r2) (< r2 16)))
+  ; 4434:       47 a5           dadd.b  r5,     r7      ;
+  ; yay horrible bitvector encodings
+  (let ([instr-addr #x1d00]
+        [instr-b1 (bitwise-ior #x40 r2)]
+        [instr-b2 (bitwise-ior #xa0 r1)]
+        [halt-b1 #xff]
+        [halt-b2 #x3f])
+    (msp-mw mspd instr-addr (list instr-b1 instr-b2 halt-b1 halt-b2))
+    (msp-setreg mspd r1 v1)
+    (msp-setreg mspd r2 v2)
+    (msp-setreg mspd 2 0)
+    (msp-setreg mspd 0 instr-addr)
+    (define oldregs (msp-regs mspd))
+    (msp-step mspd)
+    (define newregs (msp-regs mspd))
+    (list oldregs newregs)))
+
+(define m (mspdebug-init))
+
+(define (number->hex x)
+  (format "0x~x" x))
+
+(printf "\n")
+; all combinations of low digit, r4 + r5
+(define dadd-reg-observations
+  (let ([r1 4] [r2 5] [vmax 16])
+    (for*/list ([v1 (in-range vmax)]
+                [v2 (in-range vmax)])
+      (let ([reg-obs (msp-step-dadd.b/regs m r1 r2 v1 v2)])
+        (printf "dadd.b R~a, R~a  ~a\n               ~a\n\n"
+                r1 r2
+                (string-join (map number->hex (first reg-obs)))
+                (string-join (map number->hex (second reg-obs))))
+        reg-obs))))
+
+(mspdebug-close m)
