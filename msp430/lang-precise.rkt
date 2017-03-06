@@ -511,8 +511,8 @@
     [(subc.w src dst) (let ([val (subc/flags! 16 src dst r m)]) (store16 val dst r m))]
     [(subc.b src dst) (let ([val (subc/flags!  8 src dst r m)]) (store8 val dst r m))]
 
-    [(cmp.w src dst) (subc/flags! 16 src dst r m)]
-    [(cmp.b src dst) (subc/flags!  8 src dst r m)]
+    [(cmp.w src dst) (sub/flags! 16 src dst r m)]
+    [(cmp.b src dst) (sub/flags!  8 src dst r m)]
 
     [(dadd.w src dst) (let ([val (dadd/flags! 16 src dst r m)]) (store16 val dst r m))]
     [(dadd.b src dst) (let ([val (dadd/flags!  8 src dst r m)]) (store8 val dst r m))]
@@ -595,9 +595,9 @@
     [(subcx.w src dst) (let ([val (ext->mspx (subcx/flags! 16 src dst r m))]) (store16 val dst r m))]
     [(subcx.b src dst) (let ([val (ext->mspx (subcx/flags! 8  src dst r m))]) (store8  val dst r m))]
 
-    [(cmpx.a src dst) (subcx/flags! 20 src dst r m)]
-    [(cmpx.w src dst) (subcx/flags! 16 src dst r m)]
-    [(cmpx.b src dst) (subcx/flags!  8 src dst r m)]
+    [(cmpx.a src dst) (subx/flags! 20 src dst r m)]
+    [(cmpx.w src dst) (subx/flags! 16 src dst r m)]
+    [(cmpx.b src dst) (subx/flags!  8 src dst r m)]
 
     [(daddx.a src dst) (let ([val (ext->mspx (daddx/flags! 20 src dst r m))]) (store20 val dst r m))]
     [(daddx.w src dst) (let ([val (ext->mspx (daddx/flags! 16 src dst r m))]) (store16 val dst r m))]
