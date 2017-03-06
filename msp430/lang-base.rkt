@@ -55,7 +55,7 @@
 (define-syntax-rule (memory-ref20 memory addr)
   (let ([loword (vector-ref memory (addr->integer addr))]
         [hiword (vector-ref memory (+ (addr->integer addr) 1))])
-    (bvor (trunc16 loword) (bvshl (and hiword #x0000f) 16))))
+    (bvor (trunc16 loword) (bvshl (bvand hiword (mspx-bv #x0000f)) (mspx-bv 16)))))
 
 (define-syntax-rule (memory-ref16 memory addr)
   (trunc16 (vector-ref memory (addr->integer addr))))
