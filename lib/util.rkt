@@ -1,4 +1,4 @@
-#lang rosette/safe
+#lang rosette
 
 (provide (all-defined-out))
 
@@ -23,3 +23,11 @@
 
 (define-syntax-rule (iff x y)
   (and (implies x y) (implies y x)))
+
+; Get path to this file, useful if you want to "require"
+; things that aren't racket files.
+; See: http://stackoverflow.com/questions/16842811/racket-how-to-retrieve-the-path-of-the-running-file
+(define-syntax-rule (get-here)
+  (let*-values ([(ccr) (current-contract-region)]
+                [(here-dir here-name here-isdir) (split-path ccr)])
+    here-dir))
