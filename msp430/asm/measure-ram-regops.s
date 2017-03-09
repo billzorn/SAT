@@ -116,28 +116,34 @@ _loop:
 	MOVX.A	&_rand_r1, SP
 
 	;; initialize test data
+_set_arg_r1:
 	MOV.W	&_tmp1, R4
+_set_arg_r2:
 	MOV.W	&_tmp2, R5
+_set_arg_sr:
 	MOV.W	&_tmpsr, SR
 
 _test_critical:
 	;; run test
-	DADD.B	R4, R5
-	;; NOP
-	;; NOP
-	;; NOP
-	;; NOP
-	;; NOP
-	;; NOP
-	;; NOP
+	;; e.g. DADD.B	R4, R5
+	NOP
+	NOP
+	NOP
+	NOP
+	NOP
+	NOP
+	NOP
+	NOP
 _test_critical_end:
 
 	;; save results
-	MOVX.A	SP, &_ressp	
+	MOVX.A	SP, &_ressp
+	MOVX.A	SR, &_ressr
 	ADD.W	#64, &_res	; corrupts SR
 	MOV.W	&_res, SP
 	PUSHM.A	#16, R15
 	MOVX.A	&_ressp, 4(SP)
+	MOVX.A	&_ressr, 8(SP)
 
 	;; restore registers
 	MOV.W	#_save_r4, SP
