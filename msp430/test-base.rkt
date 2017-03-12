@@ -1,6 +1,6 @@
 #lang rosette/safe
 
-(require rosette/lib/synthax "../lib/util.rkt" "../lib/bv.rkt" "lang-base.rkt" "flags.rkt")
+(require rosette/lib/synthax "../lib/util.rkt" "../lib/bv.rkt" "../lib/mem_simple.rkt" "lang-base.rkt" "flags.rkt")
 (require racket/vector rackunit rackunit/text-ui)
 
 (provide (all-defined-out))
@@ -27,7 +27,7 @@
 ; base case. create symbolic registers and memory, then run the test
 (define-syntax-rule (define-test r rn m mn test-body test-assertion)
   (let ([r (symbolic-bv-vector mspx-bits rn)]
-        [m (symbolic-bv-vector mspx-bits mn)])
+        [m (make-memory mn (mspx-bv 0))])
     test-body
     (vprintf 1 "verifying assertion ~a for test:\n  ~a\n"
              (quote test-assertion) (quote test-body))
@@ -94,7 +94,7 @@
     (begin
       ; copy state vectors so that the reference calculation won't interfere with test execution
       (define r-copy (vector-copy r))
-      (define m-copy (vector-copy m))
+      (define m-copy (memory-copy m))
       ; define input and result names
       (define reference-flags (get-flags r-copy))
       (define src (load. w op1 r-copy m-copy))

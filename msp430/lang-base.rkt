@@ -1,6 +1,6 @@
 #lang rosette/safe
 
-(require "../lib/bv.rkt")
+(require "../lib/bv.rkt" "../lib/mem_simple.rkt")
 
 (provide (all-defined-out))
 
@@ -52,35 +52,36 @@
   (bitvector->integer (bvlshr addr (mspx-bv 1))))
 
 ; memory dereference
-(define-syntax-rule (memory-ref20 memory addr)
-  (let ([loword (vector-ref memory (addr->integer addr))]
-        [hiword (vector-ref memory (+ (addr->integer addr) 1))])
+
+(define-syntax-rule (memory-ref20 m addr)
+  (let ([loword (memory-ref m (addr->integer addr))]
+        [hiword (memory-ref m (+ (addr->integer addr) 1))])
     (bvor (trunc16 loword) (bvshl (bvand hiword (mspx-bv #x0000f)) (mspx-bv 16)))))
 
-(define-syntax-rule (memory-ref16 memory addr)
-  (trunc16 (vector-ref memory (addr->integer addr))))
+(define-syntax-rule (memory-ref16 m addr)
+  (trunc16 (memory-ref m (addr->integer addr))))
 
-(define-syntax-rule (memory-ref8 memory addr)
+(define-syntax-rule (memory-ref8 m addr)
   (if (bveq (trunc1 addr) (mspx-bv 0))
-      (trunc8 (vector-ref memory (addr->integer addr)))
-      (high8->low (vector-ref memory (addr->integer addr)))))
+      (trunc8 (memory-ref m (addr->integer addr)))
+      (high8->low (memory-ref m (addr->integer addr)))))
 
 ; memory assignment
-(define-syntax-rule (memory-set20! memory addr x)
+
+(define-syntax-rule (memory-set20! m addr x)
   (let ([loword (trunc16 x)]
-        [hiword (bvlshr x 16)])
-      (begin (vector-set! memory (addr->integer addr) (loword))
-             (vector-set! memory (+ (addr->integer addr) 1) (hiword)))))
+        [hiword (bvlshr x (mspx-bv 16))])
+      (begin (memory-set! m (addr->integer addr) loword)
+             (memory-set! m (+ (addr->integer addr) 1) hiword))))
 
-(define-syntax-rule (memory-set16! memory addr x)
-  (vector-set! memory (addr->integer addr) (trunc16 x)))
+(define-syntax-rule (memory-set16! m addr x)
+  (memory-set! m (addr->integer addr) (trunc16 x)))
 
-; this is horrible
-(define-syntax-rule (memory-set8! memory addr x)
-  (let ([m (vector-ref memory (addr->integer addr))])
+(define-syntax-rule (memory-set8! m addr x)
+  (let ([val (memory-ref m (addr->integer addr))])
     (if (bveq (trunc1 addr) (mspx-bv 0))
-        (vector-set! memory (addr->integer addr) (bvor (high8 m) (trunc8 x)))
-        (vector-set! memory (addr->integer addr) (bvor (bvshl (trunc8 x) (mspx-bv 8)) (trunc8 m))))))
+        (memory-set! m (addr->integer addr) (bvor (high8 val) (trunc8 x)))
+        (memory-set! m (addr->integer addr) (bvor (bvshl (trunc8 x) (mspx-bv 8)) (trunc8 val))))))
 
 ; register dereference
 (define-syntax-rule (register-ref registers r)
