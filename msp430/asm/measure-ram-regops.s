@@ -4,9 +4,9 @@
 
 .section .bss
 .balign 2
-_tmp1:	.skip 2
-_tmp2:	.skip 2
-_tmpsr:	.skip 2
+_tmp_r1:	.skip 2
+_tmp_r2:	.skip 2
+_tmp_sr:	.skip 2
 _res:	.skip 2
 _ressp:	.skip 4
 _ressr:	.skip 4
@@ -62,6 +62,7 @@ _r13:	.word 0x0
 	.word 0x0
 _r14:	.word 0x0		; i
 	.word 0x0
+_max_iters:
 _r15:	.word 0x18		; 24, max_iters
 	.word 0x0
 	
@@ -101,10 +102,10 @@ _loop:
 	JL	_loop_done	; Yes, we're done.
 	
 	;; set up arguments
-	MOV.W	@R4+, &_tmp1
-	MOV.W	@R5+, &_tmp2
-	MOV.W	@R6+, &_tmpsr
-	AND.W	#0x0107, &_tmpsr ; clear invalid flags
+	MOV.W	@R4+, &_tmp_r1
+	MOV.W	@R5+, &_tmp_r2
+	MOV.W	@R6+, &_tmp_sr
+	AND.W	#0x0107, &_tmp_sr ; clear invalid flags
 
 	;; save the current register state
 	MOV.W	#_save_end, SP
@@ -117,11 +118,11 @@ _loop:
 
 	;; initialize test data
 _set_arg_r1:
-	MOV.W	&_tmp1, R4
+	MOV.W	&_tmp_r1, R4
 _set_arg_r2:
-	MOV.W	&_tmp2, R5
+	MOV.W	&_tmp_r2, R5
 _set_arg_sr:
-	MOV.W	&_tmpsr, SR
+	MOV.W	&_tmp_sr, SR
 
 _test_critical:
 	;; run test
@@ -142,6 +143,7 @@ _test_critical_end:
 	ADD.W	#64, &_res	; corrupts SR
 	MOV.W	&_res, SP
 	PUSHM.A	#16, R15
+_final_saved_pc:
 	MOVX.A	&_ressp, 4(SP)
 	MOVX.A	&_ressr, 8(SP)
 
