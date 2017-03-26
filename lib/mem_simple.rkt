@@ -1,4 +1,4 @@
-#lang rosette/safe
+#lang rosette
 
 (provide (all-defined-out))
 
@@ -12,4 +12,4 @@
 
 (define-syntax-rule (memory-set! m a val) (vector-set! m a val))
 
-(define-syntax-rule (memory-copy m) (vector-copy! m))
+(define-syntax-rule (memory-copy m) (vector-copy m))
