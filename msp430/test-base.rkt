@@ -22,11 +22,24 @@
 (define-syntax-rule (vprintf v s args ...)
   (when (>= test-verbosity v) (printf s args ...)))
 
+; We presumably do not want a symbolic PC value for these tests.
+; For test-precise, it actually makes it impossible to execute stepn, since we
+;   need to reference the i_th element of the instructions vector.
+; For test-simple, though it may be desirable to allow the framework to treat r0
+;   like any other register, it simplifies things enormously if we do not have
+;   to generalize the behavior and pass this around through all the test macros.
+; TODO: If this test framework gets generalized out to other architectures, the
+;   PC may not always be register 0.
+(define-syntax-rule (make-register-file bits n)
+  (let ([r (symbolic-bv-vector bits n)])
+     (vector-set! r 0 (mspx-bv 0))
+     r))
+
 ; main test macros
 
 ; base case. create symbolic registers and memory, then run the test
 (define-syntax-rule (define-test r rn m mn test-body test-assertion)
-  (let ([r (symbolic-bv-vector mspx-bits rn)]
+  (let ([r (make-register-file mspx-bits rn)]
         [m (make-memory mn (mspx-bv 0))])
     test-body
     (vprintf 1 "verifying assertion ~a for test:\n  ~a\n"

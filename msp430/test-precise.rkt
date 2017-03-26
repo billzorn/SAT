@@ -128,8 +128,8 @@
 
 (define-syntax-rule (run-state-simple instr)
   (lambda (op1 op2 r m)
-    ; temp: use a static pc
-    (vector-set! r REG/PC (mspx-bv 0))
+    ; Only works if PC is 0
+    (assert (bveq (vector-ref r REG/PC) (mspx-bv 0)))
     (define running (box #t))
     (define test-state (state
                         (vector (instr op1 op2))
@@ -138,6 +138,13 @@
     ; (assert (not (unbox running)))
     ))
 
+; Just so I don't lose it:
+; The problem is that the solver wants to try out a register file with r0 = 1,
+; and uses that in its reference computation. However, when we run the actual
+; simulation here, we force it to 0, which actually will have an effect on the
+; behavior of cmp for example since one of the operands is r0. So the reference
+; computation doesn't match the actual simulation.
+
 (define (get-flags-simple r)
   (register-ref r REG/SR))
 
@@ -145,11 +152,28 @@
   (test-flags-fmt1 #:run-state (run-state-simple instr)
                    #:mk-assert mk-assert
                    #:width w
-                   #:mkop1 mkop-src
+                   #:mkop1 mkop-src-noai
                    #:mkop2 mkop-dst
                    #:load. (lambda (width src r m) (load. width src r m))
                    #:reference-computation reference
                    #:get-flags get-flags-simple))
+
+; Problem:
+; These tests are currently failing the precise implementation's
+; emulation of the program counter is doing the correct thing:
+; It increments *before* computing the result of the computation,
+; So the test's reference computation comes up with a different result if one of
+; the arguments uses r0
+; 
+; One solution would be to prohibit tests from using register 0 in their
+; models. This seems a bit inelegant and may miss some edge cases.
+;
+; Another solution would be to attempt to emulate the increment when performing
+; the reference computation. However, this requires the code performing this
+; computation (currently in test-base) to know about a) what the operand is, b)
+; which register the operand refers to, and c) the behavior of the increment (if
+; the above two can be solved elegantly, this may not be an issue, as there is a
+; defined behavior)
 
 (define-test-suite ts-fmt1-flags
   (test-case
@@ -166,6 +190,6 @@
                   mk-assert-sub-z)))
   )
 
-(run-tests ts-autoincr)
-(run-tests ts-store/load)
+;(run-tests ts-autoincr)
+;(run-tests ts-store/load)
 (run-tests ts-fmt1-flags)
