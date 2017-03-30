@@ -1,6 +1,6 @@
 #lang racket
 
-(provide io-diffs io-table/sr io-lookup/sr)
+(provide io-diffs io-table/sr io-lookup/sr io-lookup)
 
 (define (io-diffs data inputs outputs)
   (define exp-regs (list->set outputs))

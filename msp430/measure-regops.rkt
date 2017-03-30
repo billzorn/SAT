@@ -1,84 +1,173 @@
 #lang racket
 
-(require "../lib/util.rkt"
+(require "../lib/racket-utils.rkt"
          "../py-mspdebug/shim/mspdebug.rkt"
          "../lib/tools/bin-symbols.rkt"
-         "variants/fr5969.rkt"
-         "asm/assemble.rkt")
+         "../lib/tools/assemble.rkt"
+         "variants/fr5969.rkt")
 
 (provide
+ ; information for msp430fr5969 reference implementation
+ regops-source regops-elf regops-syms
+ ; setup
  measurement-kernel-compile
  measurement-kernel-symbols
  measurement-kernel-init
- measure-regops)
+ ; main measurement method
+ measure-regops
+ ; parallel driver
+ )
 
 (define here (get-here))
+
+; reference implementation
 (define regops-source (build-path here "asm/measure-ram-regops.s"))
-(define regops-elf (build-path here "asm/measure-ram-regops.elf"))
+(define regops-elf    (build-path here "asm/measure-ram-regops.elf"))
+(define regops-syms  '(_start
+                       _rand
+                       _rand_end
+                       _results
+                       _results_end
+                       _max_iters
+                       _set_arg_r1
+                       _set_arg_r2
+                       _tmp_r1
+                       _tmp_r2
+                       _test_critical
+                       _test_critical_end
+                       _arg1
+                       _arg2
+                       _argsr
+                       _final_saved_pc
+                       _loop_done))
 
-(define regop-syms
-  '(_start
-    _rand
-    _rand_end
-    _results
-    _results_end
-    _max_iters
-    _set_arg_r1
-    _set_arg_r2
-    _tmp_r1
-    _tmp_r2
-    _test_critical
-    _test_critical_end
-    _arg1
-    _arg2
-    _argsr
-    _final_saved_pc
-    _loop_done))
+; setup
 
+; Compiles a binary kernel from assembly source for use in taking measurements.
+; Depends on the msp430 C compiler as an assembler, and assumes that the source
+; file is a stand-alone executable able to be compiled with -nostdlib.
+;
+; * source : (or/c path? string-no-nuls? bytes-no-nuls?) is the name of the source
+; file to be compiled. Defaults to the provided msp430fr5969 reference.
+;
+; * elf : (or/c path? string-no-nuls? bytes-no-nuls?) is the name of the binary
+; file to tell the compiler to output. Defaults to the provided msp430fr5969
+; reference.
+;
+; Returns the output of the assembler - the return code, data on stdout, and data
+; on stderr.
 (define (measurement-kernel-compile
-         #:name [name regops-elf])
-  (msp430fr5969-as-nostdlib regops-source name))
+         #:source [source regops-source]
+         #:elf    [elf regops-elf])
+  (msp430fr5969-as-nostdlib source elf))
 
+; Extracts symbols from an assembled binary kernel using msp430 objdump.
+;
+; * syms : (listof symbol?) is the list of symbols to extract. Defaults to the
+; provided msp430fr5969 reference.
+;
+; * elf : (or/c path? string-no-nuls? bytes-no-nuls?) is the name of the binary kernel
+; file to extract symbols from. Defaults to the provided msp430fr5969 reference.
+;
+; Returns an immutable hasheq mapping symbols to numerical values. Fails if any requested
+; symbol is missing from the binary.
 (define (measurement-kernel-symbols
-         #:name [name regops-elf])
-  (let ([symtab (dump-msp430-symbols regops-elf)])
-    (for/hasheq ([s regop-syms])
+         #:syms [syms regops-syms]
+         #:elf  [elf regops-elf])
+  (let ([symtab (dump-msp430-symbols elf)])
+    (for/hasheq ([s syms])
       (let ([addr (hash-ref symtab s (lambda () (raise-user-error "missing symbol:" s)))])
         (values s addr)))))
 
+; Sets up an mspdebug instance for the given binary measurement kernel.
+;
+; * elf : (or/c path? string-no-nuls? bytes-no-nuls?) is the name of the binary kernel
+; to run. Defaults to the provided msp430fr5969 reference.
+;
+; Returns an mspdebug struct that can be used with the py-mspdebug shim.
 (define (measurement-kernel-init
-         #:name [name regops-elf])
+         #:elf [elf regops-elf])
   (define mspd (mspdebug-init))
-  (msp-prog mspd name)
+  (msp-prog mspd elf)
   (msp-fill mspd ram-start ram-size '(0))
   mspd)
 
+; Measurement procedure for format I double-operand instructions in register mode.
+; Depends on all of the symbols named in regops-syms, and will fail if not provided
+; a kernel that exposes them.
+;
+; * opcodes : (listof number?) is the code segment to be measured. Will be directly
+; written into memory as a sequence of bytes.
+;
+; * arguments : (listof (listof number?)) is the set of arguments to measure. Each
+; list of arguments in the set should have three elements: the value to supply
+; in rsrc, the value to supply in rdst, and the value to supply in the status
+; register.
+;
+; * rsrc : number? is the register to use as the source register of the operation.
+; This controls how argument setup is done, and assumes the provided opcode(s)
+; actually use this register as the source. Must be 1 or 4-15.
+;
+; * rdst : number? is like rsrc, but identifies the destination register. Must
+; aslo be 1 or 4-15.
+;
+; * reginit : (listof number?) is a bitpattern to use for base initializtion of
+; registers during testing. The source and destination registers will be overwritten
+; with the arguments during actual tests. A pattern of any length can be provided,
+; and will be filled over a 64-byte area used to pre-initialize registers via POPM.A.
+;
+; * runtime : number? is the number of seconds to run each test batch for. If the test
+; does not complete, it will be continued until it does. Extremely small values work
+; well, such as 0.05.
+;
+; * meas-elf : (or/c path? string-no-nuls? bytes-no-nuls?) is the name of the binary kernel
+; to use for measurement. Defaults to the provided msp430fr5969 reference.
+;
+; * meas-syms : (or/c void? hash-eq?) is an optional hasheq of symbols to use.
+; If not void, overrides the default behavior of extracting symbols from meas-elf.
+;
+; * meas-mspd : mspdebug? is an optional mspdebug struct to use. If not void,
+; overrides the default behavior of opening a new session with measurement-kernel-init.
+;
+; Returns a list measurement results. Each result is a pair of vectors, with the first
+; representing the values of the registers before the provide opcodes were run, and the
+; second the values of the registers after. The order is the same as the order of the
+; arguments, but the values of the arguments can also be recovered from the first
+; vector.
 (define (measure-regops
-         #:opcodes opcodes
-         #:rsrc [rsrc 4]
-         #:rdst [rdst 5]
+         #:opcodes   opcodes
          #:arguments arguments
-         #:reginit reginit
-         #:measurement-kernel [measurement-kernel regops-elf]
-         #:runtime [runtime 0.05])
-  (define syms (measurement-kernel-symbols #:name measurement-kernel))
-  (define _start (hash-ref syms '_start))
-  (define _rand (hash-ref syms '_rand))
-  (define _rand_end (hash-ref syms '_rand_end))
-  (define _results (hash-ref syms '_results))
-  ;; (define _results_end (hash-ref syms '_results_end))
-  (define _max_iters (hash-ref syms '_max_iters))
-  (define _set_arg_r1 (hash-ref syms '_set_arg_r1))
-  (define _set_arg_r2 (hash-ref syms '_set_arg_r2))
-  (define _tmp_r1 (hash-ref syms '_tmp_r1))
-  (define _tmp_r2 (hash-ref syms '_tmp_r2))
-  (define _test_critical (hash-ref syms '_test_critical))
-  (define _test_critical_end (hash-ref syms '_test_critical_end))
-  (define _arg1 (hash-ref syms '_arg1))
-  (define _arg2 (hash-ref syms '_arg2))
-  (define _argsr (hash-ref syms '_argsr))
-  (define _final_saved_pc (hash-ref syms '_final_saved_pc))
-  (define _loop_done (hash-ref syms '_loop_done))
+         #:rsrc      [rsrc 4]
+         #:rdst      [rdst 5]
+         #:reginit   [reginit '(#xab #xcd #x0f #x00)]
+         #:runtime   [runtime 0.05]
+         #:meas-elf  [meas-elf regops-elf]
+         #:meas-syms [meas-syms void]
+         #:meas-mspd [meas-mspd void])
+
+  ; get symbols and check for validity
+  (define syms (if (void? meas-syms)
+                   (measurement-kernel-symbols #:elf meas-elf)
+                   meas-syms))
+
+  (define-syntax-rule (defsym id) (define id (hash-ref syms (quote id))))
+  (defsym _start)
+  (defsym _rand)
+  (defsym _rand_end)
+  (defsym _results)
+  ;; (defsym _results_end)
+  (defsym _max_iters)
+  (defsym _set_arg_r1)
+  (defsym _set_arg_r2)
+  (defsym _tmp_r1)
+  (defsym _tmp_r2)
+  (defsym _test_critical)
+  (defsym _test_critical_end)
+  (defsym _arg1)
+  (defsym _arg2)
+  (defsym _argsr)
+  (defsym _final_saved_pc)
+  (defsym _loop_done)
 
   (unless (= (- _rand_end _rand) 64)
     (raise-arguments-error 'measure-regops
@@ -103,7 +192,11 @@
                            "given rsrc" rsrc
                            "given rdst" rdst))
 
-  (define mspd (measurement-kernel-init #:name measurement-kernel))
+  ; get mspd connection and finish validity checks
+  (define mspd (if (void? meas-mspd)
+                   (measurement-kernel-init #:elf meas-elf)
+                   meas-mspd))
+  
   (define max_iters (msp-read-dword mspd _max_iters))
 
   (unless (> max_iters 0)
@@ -122,6 +215,7 @@
   (msp-mw mspd _set_arg_r1 rsrc-logic)
   (msp-mw mspd _set_arg_r2 rdst-logic)
   (msp-mw mspd _test_critical opcodes)
+  
   ; load initial register payload
   (msp-fill mspd _rand 64 reginit)
 
@@ -159,7 +253,8 @@
           (unless (and (= (first pc-opcodes) #xff)
                        (= (second pc-opcodes) #x3f))
             (run-to-completion))))))
-  
+
+  ; batched measurement for all currently collected inputs
   (define (measure)
     (define inputs (unbox current-inputs))
     (define iters (length inputs))
@@ -208,3 +303,4 @@
   (let ([retval (unbox results)])
     (mspdebug-close mspd)
     retval))
+

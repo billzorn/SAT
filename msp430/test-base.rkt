@@ -1,6 +1,11 @@
 #lang rosette/safe
 
-(require rosette/lib/synthax "../lib/util.rkt" "../lib/bv.rkt" "../lib/mem_simple.rkt" "lang-base.rkt" "flags.rkt")
+(require rosette/lib/synthax
+         "../lib/rosette-utils.rkt"
+         "../lib/bv.rkt"
+         "../lib/mem_simple.rkt"
+         "lang-base.rkt"
+         "flags.rkt")
 (require racket/vector rackunit rackunit/text-ui)
 
 (provide (all-defined-out))

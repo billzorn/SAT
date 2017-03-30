@@ -1,6 +1,11 @@
 #lang rosette/safe
 
-(require rosette/lib/synthax "../lib/util.rkt" "../lib/bv.rkt" "test-base.rkt" "lang-base.rkt" "lang-simple.rkt")
+(require rosette/lib/synthax
+         "../lib/rosette-utils.rkt"
+         "../lib/bv.rkt"
+         "test-base.rkt"
+         "lang-base.rkt"
+         "lang-simple.rkt")
 (require rackunit rackunit/text-ui)
 
 ; op creation specific to lang-simple

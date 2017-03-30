@@ -154,7 +154,7 @@ test-state
 (printf "we can avoid this by just making the whole state symbolic, and getting v1 and v2 by loading before we run.\n")
 (printf "let's use some test macros so it isn't such a pain to write all the definitions.\n\n")
 
-(require "../lib/util.rkt" "test-base.rkt")
+(require "../lib/rosette-utils.rkt" "test-base.rkt")
 (define (mkop)
   (let ([r (symbolic-int)]
         [x (symbolic-bv mspx-bits)])
@@ -233,7 +233,7 @@ loop-running
 (printf "\n")
 ; all combinations of low digit, r4 + r5
 (define dadd-reg-observations
-  (let ([r1 4] [r2 5] [vmax 16])
+  (let ([r1 4] [r2 5] [vmax 4])
     (for*/list ([v1 (in-range vmax)]
                 [v2 (in-range vmax)])
       (let ([reg-obs (msp-step-dadd.b/regs m r1 r2 v1 v2)])
