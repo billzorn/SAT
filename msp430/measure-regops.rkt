@@ -15,7 +15,8 @@
  measurement-kernel-init
  ; main measurement method
  measure-regops
- ; parallel driver
+ ; parallel version
+ measure-regops/par
  )
 
 (define here (get-here))
@@ -142,8 +143,8 @@
          #:reginit   [reginit '(#xab #xcd #x0f #x00)]
          #:runtime   [runtime 0.05]
          #:meas-elf  [meas-elf regops-elf]
-         #:meas-syms [meas-syms void]
-         #:meas-mspd [meas-mspd void])
+         #:meas-syms [meas-syms (void)]
+         #:meas-mspd [meas-mspd (void)])
 
   ; get symbols and check for validity
   (define syms (if (void? meas-syms)
@@ -304,3 +305,62 @@
     (mspdebug-close mspd)
     retval))
 
+; Parallel version of measure-regops.
+;
+; * nprocs : number? is the number of devices to use. Don't try to use more
+; devices than are available at one time, or measurement will probably fail
+; rather than waiting for them to become available.
+;
+; Behavior is otherwise identical to measure-regops.
+(define (measure-regops/par
+         #:nprocs    nprocs
+         #:opcodes   opcodes
+         #:arguments arguments
+         #:rsrc      [rsrc 4]
+         #:rdst      [rdst 5]
+         #:reginit   [reginit '(#xab #xcd #x0f #x00)]
+         #:runtime   [runtime 0.05]
+         #:meas-elf  [meas-elf regops-elf])
+
+  (define argument-chunks (chunks arguments nprocs))
+  (define places (make-vector nprocs (void)))
+
+  (define syms (measurement-kernel-symbols #:elf meas-elf))
+
+  (for ([i (in-range nprocs)])
+    (let ([p (place pch
+                    (let* ([opcodes (place-channel-get pch)]
+                           [arguments (place-channel-get pch)]
+                           [rsrc (place-channel-get pch)]
+                           [rdst (place-channel-get pch)]
+                           [reginit (place-channel-get pch)]
+                           [runtime (place-channel-get pch)]
+                           [meas-elf (place-channel-get pch)]
+                           [meas-syms (place-channel-get pch)]
+                           [meas (measure-regops
+                                  #:opcodes opcodes
+                                  #:arguments arguments
+                                  #:rsrc rsrc
+                                  #:rdst rdst
+                                  #:reginit reginit
+                                  #:runtime runtime
+                                  #:meas-elf meas-elf
+                                  #:meas-syms meas-syms
+                                  #:meas-mspd (void))])
+                      (place-channel-put pch meas)))])
+      (place-channel-put p opcodes)
+      (place-channel-put p (list-ref argument-chunks i))
+      (place-channel-put p rsrc)
+      (place-channel-put p rdst)
+      (place-channel-put p reginit)
+      (place-channel-put p runtime)
+      (place-channel-put p meas-elf)
+      (place-channel-put p syms)
+      (vector-set! places i p)))
+
+  (apply append
+         (for/list ([p places])
+           (unless (= (place-wait p) 0)
+             (raise-arguments-error 'measure/par
+                                    "measurement process terminated abnormally"))
+           (place-channel-get p))))
