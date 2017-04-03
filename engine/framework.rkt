@@ -1,10 +1,10 @@
-#lang racket
+#lang rosette
 
-(require "mmap.rkt")
+(provide framework@ framework^
+         state state-mmaps state?
+         addr-expression constant ref add mul)
 
-(provide (all-defined-out))
-
-(struct state (mmaps) #:transparent)
+(require "implementation-sig.rkt")
 
 ; Domain Specific Language for describing operations over processor state
 
@@ -15,38 +15,48 @@
 (struct add addr-expression (a1 a2) #:transparent)
 (struct mul addr-expression (a1 i) #:transparent)
 
-; The following functions evaluate addressing queries to actual reads/writes
-; They can be thought of as simple interpreters of the DSL that actually run
-; queries written in it. 
+; Engine framework
 
-; execute-read takes an addressing query and performs the actual value retrieval from
-; the state.
-(define (execute-read addr state)
-  (match addr
-    [(constant i) i]
-    [(ref map addr) (send (vector-ref (state-mmaps state) map) mmap-ref (execute-read addr state))]
-    [(add a1 a2) (+ (execute-read a1 state) (execute-read a2 state))]
-    [(mul a1 i) (* i (execute-read a1 state))]))
+(struct state (mmaps) #:transparent)
 
-(define (evaluate-write addr)
-  (match addr
-    [(constant i) i]
-    [(add a1 a2) (+ (evaluate-write a1) (evaluate-write a2))]
-    [(mul a1 i) (* i (evaluate-write a1))]))
+(define-signature framework^
+  (decode/read    ; (bitvector? -> state? -> bitvector?)
+   decode/write)) ; (bitvector? -> state? bitvector? -> void?
 
-(define (execute-write addr state val)
-  (match addr
-    ; The outermost expression of a write must be a ref.
-    [(ref map addr) (send (vector-ref (state-mmaps state) map) mmap-set! (evaluate-write addr) val)]))
+(define-unit framework@
+  (import implementation^)
+  (export framework^)
 
-; Interpreter framework
+  ; The following functions evaluate addressing queries to actual reads/writes
+  ; They can be thought of as simple interpreters of the DSL that actually run
+  ; queries written in it. 
 
-;(define read 
-;  (lambda (encoding)
-;    (let ([addr (decode encoding)])
-;      (lambda (state) (execute-read addr state)))))
-;
-;(define write
-;  (lambda (encoding)
-;    (let ([addr (decode encoding)])
-;      (lambda (state value) (execute-write addr state value)))))
+  ; execute-read takes an addressing query and performs the actual value retrieval from
+  ; the state.
+  (define (execute-read addr state)
+    (match addr
+      [(constant i) (impl-bv i)]
+      [(ref map a1) (mmap-ref state map (execute-read a1 state))]
+      [(add a1 a2) (bvadd (execute-read a1 state) (execute-read a2 state))]
+      [(mul a1 i) (bvmul (impl-bv i) (execute-read a1 state))]))
+
+  (define (evaluate-write addr)
+    (match addr
+      [(constant i) (impl-bv i)]
+      [(add a1 a2) (bvadd (evaluate-write a1) (evaluate-write a2))]
+      [(mul a1 i) (bvmul (impl-bv i) (evaluate-write a1))]))
+
+  (define (execute-write addr state val)
+    (match addr
+      ; The outermost expression of a write must be a ref.
+      [(ref map addr) (mmap-set! state map (evaluate-write addr) val)]))
+
+  (define decode/read
+    (lambda (encoding)
+      (let ([addr (decode encoding)])
+        (lambda (state) (execute-read addr state)))))
+  
+  (define decode/write
+    (lambda (encoding)
+      (let ([addr (decode encoding)])
+        (lambda (state val) (execute-write addr state val))))))
