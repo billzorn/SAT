@@ -1,6 +1,6 @@
 #lang racket
 
-(provide io-diffs io-table/sr io-lookup/sr io-lookup)
+(provide (all-defined-out))
 
 (define (io-diffs data inputs outputs)
   (define exp-regs (list->set outputs))
@@ -18,42 +18,43 @@
           (printf "register change not captured by outptus:\n  inputs: ~a, outputs: ~a\n  diff: ~a\n"
                   inputs outputs diff)))
       (cons
-       (for/vector ([rn inputs]) (vector-ref in-regs rn))
-       (for/vector ([rn outputs]) (vector-ref out-regs rn))))))
-
-(define (empty-table sizes)
-  (if (null? sizes)
-      '#()
-      (for/vector ([x (in-range (car sizes))])
-        (empty-table (cdr sizes)))))
+       (for/list ([rn inputs]) (vector-ref in-regs rn))
+       (for/list ([rn outputs]) (vector-ref out-regs rn))))))
 
 (define-syntax-rule (compress-sr x)
   (bitwise-ior (bitwise-and x 7) (bitwise-and (arithmetic-shift x -5) 8)))
 
-(define (update-table/sr iotab i inputs outputs)
-  (let ([input-idx (if (= i 0)
-                       (compress-sr (vector-ref inputs i))
-                       (vector-ref inputs i))])
-    (if (< i (- (vector-length inputs) 1))
-        (update-table/sr (vector-ref iotab input-idx) (+ i 1) inputs outputs)
-        (vector-set! iotab input-idx outputs))))
+; assumes sr is already compressed, i.e. sr & 0xf = sr
+(define (iotab-idx-fmt1 sr a b)
+  (bitwise-ior (arithmetic-shift (bitwise-and sr #xf) 16)
+               (arithmetic-shift (bitwise-and a #xff) 8)
+               (bitwise-and b #xff)))
 
-(define (io-table/sr diffs input-sizes)
-  (let ([iotab (empty-table input-sizes)])
-    (for ([iopair diffs])
-      (update-table/sr iotab 0 (car iopair) (cdr iopair)))
+; assumes sr is already compressed, i.e. sr & 0xf = sr
+(define (iotab-idx-fmt1/sr sr a b)
+  (bitwise-ior (arithmetic-shift (bitwise-and (compress-sr sr) #xf) 16)
+               (arithmetic-shift (bitwise-and a #xff) 8)
+               (bitwise-and b #xff)))
+
+; assumes diffs have three inputs (sr src dst) and two outputs (sr dst)
+(define (iotab-fmt1/sr diffs)
+  (let ([iotab (make-vector (* 16 256 256) (void))])
+    (for ([diff diffs])
+      (vector-set! iotab (apply iotab-idx-fmt1/sr (car diff)) (cdr diff)))
+    (define missing-outputs 0)
+    (for ([output iotab])
+      (when (void? output) (set! missing-outputs #f)))
+    (when (> missing-outputs 0) (printf "iotab-fmt1/sr: missing ~a outputs\n" missing-outputs))
     iotab))
 
-(define (io-lookup/sr iotab inputs #:i [i 0])
-  (let ([input-idx (if (= i 0)
-                       (compress-sr (vector-ref inputs i))
-                       (vector-ref inputs i))])
-    (if (< i (- (vector-length inputs) 1))
-        (io-lookup/sr (vector-ref iotab input-idx) inputs #:i (+ i 1))
-        (vector-ref iotab input-idx))))
+(define (iotab-lookup-fmt1 iotab inputs)
+  (vector-ref iotab (apply iotab-idx-fmt1 inputs)))
 
-(define (io-lookup iotab inputs #:i [i 0])
-  (let ([input-idx (vector-ref inputs i)])
-    (if (< i (- (vector-length inputs) 1))
-        (io-lookup/sr (vector-ref iotab input-idx) inputs #:i (+ i 1))
-        (vector-ref iotab input-idx))))
+(define (iotab-lookup-fmt1/sr iotab inputs)
+  (vector-ref iotab (apply iotab-idx-fmt1/sr inputs)))
+
+
+(define (iotab-split iotab n)
+  (apply values
+         (for/list ([i (in-range n)])
+           (vector-map (lambda (x) (vector-ref x i)) iotab))))

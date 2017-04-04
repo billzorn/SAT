@@ -1,6 +1,6 @@
 #lang racket
 
-(require "../lib/racket-utils.rkt" "measure-regops.rkt")
+(require "../lib/racket-utils.rkt" "measure-regops.rkt" "process-measurements.rkt")
 
 
 
@@ -71,30 +71,66 @@
 (deftextpath data/regops/bis.b)
 (deftextpath data/regops/xor.b)
 (deftextpath data/regops/and.b)
+(define-syntax-rule (defrktpath id)
+  (define id (build-path here (string-append "../" (symbol->string (quote id)) ".rkt"))))
+(defrelpath data/io/)
+(defrktpath data/io/mov.b)
+(defrktpath data/io/add.b)
+(defrktpath data/io/addc.b)
+(defrktpath data/io/subc.b)
+(defrktpath data/io/sub.b)
+(defrktpath data/io/cmp.b)
+(defrktpath data/io/dadd.b)
+(defrktpath data/io/bit.b)
+(defrktpath data/io/bic.b)
+(defrktpath data/io/bis.b)
+(defrktpath data/io/xor.b)
+(defrktpath data/io/and.b)
 
 (define regops.b
-  (vector
-   (vector 'mov.b  regopc/mov.b  data/regops/mov.b)
-   (vector 'add.b  regopc/add.b  data/regops/add.b)
-   (vector 'addc.b regopc/addc.b data/regops/addc.b)
-   (vector 'subc.b regopc/subc.b data/regops/subc.b)
-   (vector 'sub.b  regopc/sub.b  data/regops/sub.b)
-   (vector 'cmp.b  regopc/cmp.b  data/regops/cmp.b)
-   (vector 'dadd.b regopc/dadd.b data/regops/dadd.b)
-   (vector 'bit.b  regopc/bit.b  data/regops/bit.b)
-   (vector 'bic.b  regopc/bic.b  data/regops/bic.b)
-   (vector 'bis.b  regopc/bis.b  data/regops/bis.b)
-   (vector 'xor.b  regopc/xor.b  data/regops/xor.b)
-   (vector 'and.b  regopc/and.b  data/regops/and.b)))
+  (list
+   (list 'mov.b  regopc/mov.b  data/regops/mov.b  data/io/mov.b)
+   (list 'add.b  regopc/add.b  data/regops/add.b  data/io/add.b)
+   (list 'addc.b regopc/addc.b data/regops/addc.b data/io/addc.b)
+   (list 'subc.b regopc/subc.b data/regops/subc.b data/io/subc.b)
+   (list 'sub.b  regopc/sub.b  data/regops/sub.b  data/io/sub.b)
+   (list 'cmp.b  regopc/cmp.b  data/regops/cmp.b  data/io/cmp.b)
+   (list 'dadd.b regopc/dadd.b data/regops/dadd.b data/io/dadd.b)
+   (list 'bit.b  regopc/bit.b  data/regops/bit.b  data/io/bit.b)
+   (list 'bic.b  regopc/bic.b  data/regops/bic.b  data/io/bic.b)
+   (list 'bis.b  regopc/bis.b  data/regops/bis.b  data/io/bis.b)
+   (list 'xor.b  regopc/xor.b  data/regops/xor.b  data/io/xor.b)
+   (list 'and.b  regopc/and.b  data/regops/and.b  data/io/and.b)))
 
 (define (rmeasure-regop.b/all nprocs)
   (unless (directory-exists? data/) (make-directory data/))
   (unless (directory-exists? data/regops/) (make-directory data/regops/))
 
   (for ([fields regops.b])
-    (let ([opc (vector-ref fields 1)]
-          [path (vector-ref fields 2)])
+    (let ([opc (second fields)]
+          [path (third fields)])
       (rmeasure-regop.b/par
        #:nprocs nprocs
        #:opc opc
        #:fname path))))
+
+(define (process-regop inpath outpath sym)
+  (let* ([fin (open-input-file inpath)]
+         [raw-data (read fin)]
+         [data (iotab-fmt1/sr (io-diffs raw-data '(2 4 5) '(2 5)))]
+         [fout (open-output-file outpath)])
+    (close-input-port fin)
+    (fprintf fout
+             "#lang racket~n(provide ~a)~n(define ~a~n~v)~n"
+             sym   ; (provide sym)
+             sym   ; (define sym
+             data) ; data...)
+    (close-output-port fout)))
+
+(define (process-regop.b/all)
+  (unless (directory-exists? data/io/) (make-directory data/io/))
+  (for ([fields regops.b])
+    (let ([inpath (third fields)]
+          [outpath (fourth fields)]
+          [sym (first fields)])
+      (process-regop inpath outpath sym))))
