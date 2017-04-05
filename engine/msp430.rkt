@@ -29,7 +29,7 @@
 
   ; Dummy decoder
   ; Presumably, the actual implementation would be synthesized somehow
-  (define (decode src)
+  (define (decode-operand src)
     (if (bveq src (mspx-bv 0))
       (begin (reg 0))
       (begin (abs 0))))
