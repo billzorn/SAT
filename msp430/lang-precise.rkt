@@ -1,6 +1,6 @@
 #lang rosette/safe
 
-(require rosette/lib/match "../lib/bv.rkt" "lang-base.rkt" "flags.rkt")
+(require rosette/lib/match "../lib/bv.rkt" "lang-base.rkt" "flags.rkt" "regs.rkt")
 
 (provide (except-out (all-defined-out) define-load-syntax define-store-syntax))
 
@@ -92,15 +92,6 @@
 ; representation of complete state
 ; instrs is a vector of instructions representing the program.
 (struct state (instrs r m running) #:transparent)
-
-; Some magic number constants
-; Register alternate names
-(define REG/PC 0)
-(define REG/SP 1)
-(define REG/SR 2)
-(define REG/CG 3)
-(define REG/CG1 2)
-(define REG/CG2 3)
 
 ; Memory Accuracy TODOs:
 ; (mostly awaiting HW-accurate memory model)

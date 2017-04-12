@@ -34,42 +34,43 @@
   (define (impl-bv i) (mspx-bv i))
 
   (define (mmap-ref state map a)
-    (let ([mmap (vector-ref (state-mmaps state) map)])
+    (let ([mmap (vector-ref (state-mmaps state) map)]
+          [i (bitvector->integer (bvlshr a (mspx-bv 1)))])
       (match map
-        [0 (vector-ref mmap (bitvector->integer a))]
-        [1 (memory-ref mmap (bitvector->integer (bvlshr a (mspx-bv 1))))])))
+        [0 (vector-ref mmap i)]
+        [1 (memory-ref mmap i)])))
 
   (define (mmap-set! state map a val)
-    (let ([mmap (vector-ref (state-mmaps state) map)])
+    (let ([mmap (vector-ref (state-mmaps state) map)]
+          [i (bitvector->integer (bvlshr a (mspx-bv 1)))])
       (match map
-        [0 (vector-set! mmap (bitvector->integer a) val)]
-        [1 (memory-set! mmap (bitvector->integer (bvlshr a (mspx-bv 1))) val)])))
+        [0 (vector-set! mmap i val)]
+        [1 (memory-set! mmap i val)])))
 
   ; Could potentially be synthesized eventually
   (define (comp-addr as rsrc imm)
-    (case (bitvector->integer as)
+    (case as
       [(#b00) (ref MAP/REG (constant rsrc))]
       [(#b01) (ref MAP/MEM (add (ref MAP/REG (constant rsrc)) (constant imm)))]
       [(#b10) (ref MAP/MEM (ref MAP/REG (constant rsrc)))]
       [(#b11) (ref MAP/MEM (ref MAP/REG (constant rsrc)))]))
 
   (define (read-op state bw as rsrc imm)
-    (define addr (comp-addr as rsrc imm))
-    (perform-read addr state))
+    (perform-read (comp-addr as rsrc imm) state))
 
   (define (write-op state bw as rdst imm dst)
     (perform-write (comp-addr as rdst imm) state dst))
 
   (define (operator opcode)
-    (if (bveq (bvand opcode (mspx-bv #x4000)) (mspx-bv #x4000)) (mov) 
+    (if (bveq (bvand opcode #x4000) #x4000) (mov) 
         TODO))
 
   (define (decode-2arg stream) 
-    (let ([word (car stream)]
-          [stream (cdr stream)])
-      (define opcode  (bvand word (mspx-bv #xf000)))
-      (define rsrc    (bvlshr (bvand word (mspx-bv #x0f00)) (mspx-bv 8)))
-      (define rdst    (bvand word (mspx-bv #x000f)))
+    (let ([word (first stream)]
+          [stream (rest stream)])
+      (define opcode  (bvand word #xf000))
+      (define rsrc    (bvlshr (bvand word #x0f00) 8))
+      (define rdst    (bvand word #x000f))
       (define as      (extract 5 4 word))
       (define ad      (extract 7 7 word))
       (define bw      (extract 6 6 word))
@@ -89,8 +90,8 @@
 
   (define (step/read state dec pc-incr)
     (match dec [(msp430-decoded op bw as ad rsrc rdst imm0 imm1)
-      (let ([pc (bvadd (mmap-ref state MAP/REG (mspx-bv REG/PC)) pc-incr)]
-            [sr (mmap-ref state MAP/REG (mspx-bv REG/SR))]
+      (let ([pc (bvadd (mmap-ref state MAP/REG REG/PC) pc-incr)]
+            [sr (mmap-ref state MAP/REG REG/SR)]
             [op1 (read-op state bw as rsrc imm0)]
             [op2 (read-op state bw ad rdst imm1)])
         (stepctx pc sr op1 op2 null))]))
@@ -99,15 +100,15 @@
     (match ctx [(stepctx _ sr op1 op2 _)
       (let* ([dst (dispatch op bw sr op1 op2)]
              [sr  (dispatch/flags op bw sr op1 op2 dst)])
-        (set-stepctx-dst! ctx dst)
-        (set-stepctx-sr! ctx sr))]))
+        (set-stepctx-dst! dst)
+        (set-stepctx-sr! sr))]))
 
-  (define (step/write state dec ctx)
-    (match (cons dec ctx) [(cons (msp430-decoded _ bw as ad rsrc rdst _ imm1) (stepctx pc sr _ _ dst)) 
-      (begin (perform-write (ref MAP/REG (constant (mspx-bv REG/PC))) state pc)
-             (perform-write (ref MAP/REG (constant (mspx-bv REG/SR))) state sr)
-             ;(perform-write (ref MAP/REG (constant rsrc)) state stuff)
-             (write-op state bw ad rdst imm1 dst))]))
+  (define (step/write state dec ctx stuff)
+    (match (cons dec ctx) [(cons (msp430-decoded _ bw as _ rsrc rdst _ imm1) (stepctx pc sr _ _ dst)) 
+      (begin (perform-write (ref MAP/REG (constant REG/PC) state (stepctx-pc pc)))
+             (perform-write (ref MAP/REG (constant REG/SR) state (stepctx-sr sr)))
+             (perform-write (ref MAP/REG (constant rsrc)) state stuff)
+             (write-op state ad rdst imm1 dst))]))
   )
 
 (define-compound-unit/infer msp430-engine@
@@ -117,9 +118,9 @@
 
 ; Test code
 
-(define instr-stream (cons (mspx-bv #x4102) (void))) ; mov r1, r2
-(define s (msp430-state 4 4))
-(perform-write (ref MAP/REG (constant (mspx-bv 1))) s (mspx-bv 17))
-(displayln s)
-(step s instr-stream)
-(displayln s)
+(define instr-stream (cons (mspx-bv #x4001) (void))) ; mov r0, r1
+(define state (msp430-state 4 4))
+(displayln state)
+(perform-write (ref MAP/REG 0) state (mspx-bv 17))
+(step state instr-stream)
+(displayln state)
