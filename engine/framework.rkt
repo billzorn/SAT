@@ -65,3 +65,9 @@
         (step/exec (decoded-op dec) (decoded-bw dec) ctx)
         (step/write state dec ctx)))
 )
+
+; Open questions: 
+; - What parts of what are currently in the msp430 implementation can be moved out?
+; - Which parameters can be moved to the common framework structures?
+; - What parts of the msp430 impl can be synthesized and what parts must be
+;   hand-written?
