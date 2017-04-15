@@ -4,7 +4,6 @@
 
 (provide (all-defined-out))
 
-
 ; Flag register bitmasks
 (define FLAG/C (mspx-bv #b00000001))
 (define FLAG/Z (mspx-bv #b00000010))

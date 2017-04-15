@@ -60,3 +60,4 @@
 
 (define-syntax-rule (bits-set? x b)
   (bveq (bvand x b) b ))
+
