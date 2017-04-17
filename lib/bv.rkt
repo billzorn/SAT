@@ -61,3 +61,8 @@
 (define-syntax-rule (bits-set? x b)
   (bveq (bvand x b) b ))
 
+(define-syntax-rule (mask x m)
+  (bvand x (bv m (type-of x))))
+
+(define-syntax-rule (bveq-masked m)
+  (lambda (x y) (bveq (mask x m) (mask y m))))

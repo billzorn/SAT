@@ -2,10 +2,10 @@
 
 (provide framework@ framework^
          state state-mmaps state?
-         op op?
+         op op? define-ops 
          decoded decoded?
          operand operand?
-         stepctx stepctx? stepctx-pc stepctx-sr set-stepctx-sr! set-stepctx-dst!
+         stepctx stepctx? stepctx-pc stepctx-sr
          addr-expression constant ref add mul)
 
 (require "implementation-sig.rkt")
@@ -23,13 +23,48 @@
 ; Engine framework
 
 (struct state (mmaps) #:transparent)
+
 (struct op () #:transparent)
-(struct decoded (op bw) #:transparent)
+(define-syntax (define-ops stx)
+  (syntax-case stx ()
+    [(_ [id])
+     #'(begin (struct id op () #:transparent))]
+    [(_ [id more ...])
+     #'(begin
+         (define-ops [id])
+         (define-ops [more ...]))]))
+
+; decoded: Common struct for passing around the result of instruction decoding
+;  op: opcode of the instruction
+;  bw: bitwidth of the instruction (e.g. 8 for byte, 16 for word, etc)
+;  op1: an operand? struct specifying the first operand of the instruction 
+;  op2: if applicable, an operand? struct specifying the second operand of the instruction 
+;       (null if not applicable)
+; implementations can inherit from this if they need to pass around additional
+;  information from decoding
+(struct decoded (op bw op1 op2) #:transparent)
+
+; operand: Common struct for passing around the result of operand decoding
+; implementations can inherit from this to specify what pieces of data their
+;   operands require
 (struct operand () #:transparent)
+
+; stepctx: Common struct for passing around pieces of state between stages of
+;  execution.
+;   pc: current value of the program counter (presumably retrieved from the
+;       register file by step/read)  
+;   sr: current value of the status/flags register (presumably retrieved from
+;       the register file by step/read)
+;   op1: calculated value of the first operand
+;   op2: calculated value of the second operand
+;   dst: the result of the instruction, or null if not yet computed
+; implementations can inherit from this if they require additional pieces of
+;  state data.
 (struct stepctx (pc [sr #:mutable] op1 op2 [dst #:mutable]) #:transparent)
 
 (define-signature framework^
-  (perform-write   ; (addr-expression? state? bitvector? -> void?)
+  (perform-read    ; (addr-expression? state? -> bitvector?)
+   perform-write   ; (addr-expression? state? bitvector? -> void?)
    read-op         ; (state? integer? operand? -> bitvector?) 
    write-op        ; (state? integer? operand? bitvector? -> void) 
    step))          ; (state? instr-stream? -> void?)
@@ -44,12 +79,12 @@
 
   ; perform-read takes an addressing query and performs the actual value retrieval from
   ; the state.
-  (define (perform-read addr state) ; TODO bitwidth
+  (define (perform-read state addr) ; TODO bitwidth
     (match addr
       [(constant i) i]
-      [(ref map a1) (mmap-ref state map (perform-read a1 state))]
-      [(add a1 a2) (+ (perform-read a1 state) (perform-read a2 state))]
-      [(mul a1 i) (* i (perform-read a1 state))]))
+      [(ref map a1) (mmap-ref state map (perform-read state a1))]
+      [(add a1 a2) (+ (perform-read state a1) (perform-read state a2))]
+      [(mul a1 i) (* i (perform-read state a1))]))
 
   (define (evaluate-write addr)
     (match addr
@@ -57,26 +92,39 @@
       [(add a1 a2) (+ (evaluate-write a1) (evaluate-write a2))]
       [(mul a1 i) (* i (evaluate-write a1))]))
 
-  (define (perform-write addr state val)
+  (define (perform-write state addr val)
     (match addr
       ; The outermost expression of a write must be a ref.
       [(ref map addr) (mmap-set! state map (evaluate-write addr) val)]))
 
+  ; read-op and write-op perform a read or write of the state using the address
+  ; computed by the implementation for the given operand
   (define (read-op state bw op)
-    (perform-read (comp-addr op) state))
+    (perform-read state (comp-addr op)))
 
   (define (write-op state bw op dst)
-    (perform-write (comp-addr op) state dst))
+    (perform-write state (comp-addr op) dst))
 
+  ; step one instruction ahead in the instruction stream
   (define (step state instr-stream)
-    (let* ([dec (decode instr-stream)]
-           [ctx (step/read state dec (impl-bv 2))])
+    (match (decode instr-stream) [(cons instr-stream dec)
+      (let* ([ctx (step/read state dec (impl-bv (/ (decoded-bw dec) 8)))])
         (step/exec (decoded-op dec) (decoded-bw dec) ctx)
-        (step/write state dec ctx)))
+        (step/write state dec ctx)
+        instr-stream)]))
+
+  ; dispatch to the implementation-defined processor behavior once we have
+  ; concrete values for operators
+  (define (step/exec op bw ctx)
+    (match ctx [(stepctx _ sr op1 op2 _)
+      (let* ([dst (dispatch op sr op1 op2)]
+             [sr  (dispatch-sr op sr op1 op2 dst)])
+        (set-stepctx-dst! ctx dst)
+        (set-stepctx-sr! ctx sr))]))
 )
 
-; Open questions: 
-; - What parts of what are currently in the msp430 implementation can be moved out?
-; - Which parameters can be moved to the common framework structures?
-; - What parts of the msp430 impl can be synthesized and what parts must be
-;   hand-written?
+; To-do:
+; - dispatch operates on 4 bits at a time
+; - load correct bitwidth from register/memory
+; - implement symbolic-compatible interval map
+; - test other operand types
