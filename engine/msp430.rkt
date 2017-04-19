@@ -7,13 +7,13 @@
          (rename-in "../lib/mem_simple.rkt" [make-memory make-memory/vector] [memory-ref memory-ref/vector] [memory-set! memory-set!/vector] [memory-copy memory-copy/vector])
          (rename-in "../lib/mem_ivmap.rkt"  [make-memory make-memory/intervalmap]))
 
+(struct msp430-operand operand (as rsrc imm) #:transparent)
+
 (define (msp430-state rn hiaddr)
   (state (vector (make-memory/vector rn (mspx-bv 0)) 
                  (make-memory/intervalmap hiaddr (mspx-bv 0)))))
 
 (define-ops [nop mov dadd])
-
-(struct msp430-operand operand (as rsrc imm) #:transparent)
 
 (define MAP/REG 0)
 (define MAP/MEM 1)
@@ -26,17 +26,44 @@
 
   (define (impl-bv i) (mspx-bv i))
 
-  (define (mmap-ref state map a)
-    (let ([mmap (vector-ref (state-mmaps state) map)])
-      (match map
-        [0 (vector-ref mmap a)]
-        [1 (memory-ref mmap (/ a 2))])))
+  (define (trunc8 x)
+    (bvand x (mspx-bv #x000ff)))
 
-  (define (mmap-set! state map a val)
-    (let ([mmap (vector-ref (state-mmaps state) map)])
-      (match map
-        [0 (vector-set! mmap a val)]
-        [1 (memory-set! mmap (/ a 2) val)])))
+  (define (trunc16 x)
+    (bvand x (mspx-bv #x0ffff)))
+  
+  (define (mmap-ref map bw)
+    (let ([ref (lambda (state a)
+      (let ([mmap (vector-ref (state-mmaps state) map)])
+        (match map
+          [0 (vector-ref mmap a)]
+          [1 (memory-ref mmap (/ a 2))])))])
+      (match* (map bw)
+        [(_ 8) (compose trunc8 ref)]
+        [(0 16) (compose trunc16 ref)]
+        [(1 16) ref]
+        [(0 20) ref]
+        [(1 20) (lambda (s a)
+                  (bvor (trunc16 (ref s a))
+                        (bvshl (ref s (+ a 2)) (mspx-bv 16))))])))
+
+  (define (mmap-set! map bw) 
+    (let ([set (lambda (state a val)
+      (let ([mmap (vector-ref (state-mmaps state) map)])
+        (match map
+          [0 (vector-set! mmap a val)]
+          [1 (memory-set! mmap (/ a 2) val)])))])
+      (match* (map bw)
+        [(_ 8) (lambda (s a v) (set s a (trunc8 v)))]
+        [(0 16) (lambda (s a v) (set s a (trunc16 v)))]
+        [(0 20) set]
+        [(1 16) set]
+        [(1 20) (lambda (s a v)
+                  (set s a (trunc16 v))
+                  (set s (+ a 2) (bvlshr v (mspx-bv 16))))])))
+
+  (define register-ref  (mmap-ref MAP/REG mspx-bits))
+  (define register-set! (mmap-set! MAP/REG mspx-bits))
 
   ; SECTION: Synthesizable processor behavior
 
@@ -105,20 +132,22 @@
 
   (define (step/read state dec pc-incr)
     (match dec [(decoded op bw op1 op2)
-      (let ([pc (bvadd (mmap-ref state MAP/REG REG/PC) pc-incr)]
-            [sr (mmap-ref state MAP/REG REG/SR)]
+      (let ([pc (bvadd (register-ref state REG/PC) pc-incr)]
+            [sr (register-ref state REG/SR)]
             [op1-val (read-op state bw op1)]
             [op2-val (read-op state bw op2)])
         (stepctx pc sr op1-val op2-val null))]))
 
   (define (step/write state dec ctx)
+    (define mspx-read  (perform-read mspx-bits))
+    (define mspx-write (perform-write mspx-bits))
     (match (cons dec ctx) 
       [(cons (decoded _ bw (msp430-operand as rsrc _) op2) (stepctx pc sr _ _ dst)) 
-        (begin (perform-write state (ref MAP/REG (constant REG/PC)) pc)
-               (perform-write state (ref MAP/REG (constant REG/SR)) sr)
+        (begin (mspx-write state (ref MAP/REG (constant REG/PC)) pc)
+               (mspx-write state (ref MAP/REG (constant REG/SR)) sr)
                (if (and (= as #b11) (not (= rsrc REG/PC)))
-                 (perform-write state (ref MAP/REG (constant rsrc))
-                   (bvadd (perform-read state (ref MAP/REG (constant rsrc))) (mspx-bv bw)))
+                 (mspx-write state (ref MAP/REG (constant rsrc))
+                   (bvadd (mspx-read state (ref MAP/REG (constant rsrc))) (mspx-bv bw)))
                  (void))
                (write-op state bw op2 dst))]))
   )
@@ -131,11 +160,11 @@
 
 
 ; basic test code
-(define instr-stream (stream (mspx-bv #x4401)                    ; mov r4, r1
+(define instr-stream (stream (mspx-bv #x4441)                    ; mov.b r4, r1
                              (mspx-bv #x4034) (mspx-bv #x1111)   ; mov 0x1111, r4
                              (mspx-bv #xa034) (mspx-bv #x1234))) ; dadd 0x1234, r4
 (define s (msp430-state 5 4))
-(perform-write s (ref MAP/REG (constant 4)) (mspx-bv 17))
+((perform-write 16) s (ref MAP/REG (constant 4)) (mspx-bv #x10111))
 (displayln s)
 (set! instr-stream (step s instr-stream))
 (displayln s)

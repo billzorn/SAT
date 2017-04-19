@@ -79,31 +79,28 @@
 
   ; perform-read takes an addressing query and performs the actual value retrieval from
   ; the state.
-  (define (perform-read state addr) ; TODO bitwidth
-    (match addr
-      [(constant i) i]
-      [(ref map a1) (mmap-ref state map (perform-read state a1))]
-      [(add a1 a2) (+ (perform-read state a1) (perform-read state a2))]
-      [(mul a1 i) (* i (perform-read state a1))]))
 
-  (define (evaluate-write addr)
-    (match addr
-      [(constant i) i]
-      [(add a1 a2) (+ (evaluate-write a1) (evaluate-write a2))]
-      [(mul a1 i) (* i (evaluate-write a1))]))
+  (define (perform-read bw)
+    (lambda (state addr)
+      (match addr
+        [(constant i) i]
+        [(ref map a1) ((mmap-ref map bw) state ((perform-read bw) state a1))]
+        [(add a1 a2) (+ ((perform-read bw) state a1) ((perform-read bw) state a2))]
+        [(mul a1 i) (* i ((perform-read bw) state a1))])))
 
-  (define (perform-write state addr val)
-    (match addr
-      ; The outermost expression of a write must be a ref.
-      [(ref map addr) (mmap-set! state map (evaluate-write addr) val)]))
+  (define (perform-write bw)
+    (lambda (state addr val)
+      (match addr
+        ; The outermost expression of a write must be a ref.
+        [(ref map addr) ((mmap-set! map bw) state ((perform-read bw) state addr) val)])))
 
   ; read-op and write-op perform a read or write of the state using the address
   ; computed by the implementation for the given operand
   (define (read-op state bw op)
-    (perform-read state (comp-addr op)))
+    ((perform-read bw) state (comp-addr op)))
 
   (define (write-op state bw op dst)
-    (perform-write state (comp-addr op) dst))
+    ((perform-write bw) state (comp-addr op) dst))
 
   ; step one instruction ahead in the instruction stream
   (define (step state instr-stream)
@@ -117,14 +114,22 @@
   ; concrete values for operators
   (define (step/exec op bw ctx)
     (match ctx [(stepctx _ sr op1 op2 _)
-      (let* ([dst (dispatch op sr op1 op2)]
-             [sr  (dispatch-sr op sr op1 op2 dst)])
-        (set-stepctx-dst! ctx dst)
-        (set-stepctx-sr! ctx sr))]))
+      ; TODO: zero-extend or sign-extend?
+      (set-stepctx-dst! ctx (zero-extend 
+        (for/fold ([result null]) 
+                  ([i (in-range 0 bw 4)])
+          (let* ([op1 (extract (+ i 3) i op1)]
+                 [op2 (extract (+ i 3) i op2)]
+                 [dst (dispatch op sr op1 op2)]
+                 [sr  (dispatch-sr op sr op1 op2 dst)])
+            ; Combine bits i : i+3 with existing result
+            (if (null? result) dst (concat dst result))))
+        (type-of (impl-bv 0))))
+      (set-stepctx-sr! ctx sr)]))
 )
 
 ; To-do:
-; - dispatch operates on 4 bits at a time
-; - load correct bitwidth from register/memory
+; ✓ dispatch operates on 4 bits at a time
+; ✓ load correct bitwidth from register/memory
 ; - implement symbolic-compatible interval map
 ; - test other operand types
