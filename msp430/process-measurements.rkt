@@ -30,7 +30,7 @@
                (arithmetic-shift (bitwise-and a #xff) 8)
                (bitwise-and b #xff)))
 
-; assumes sr is already compressed, i.e. sr & 0xf = sr
+; assumes sr is not compressed, i.e. 0xv00000nzc
 (define (iotab-idx-fmt1/sr sr a b)
   (bitwise-ior (arithmetic-shift (bitwise-and (compress-sr sr) #xf) 16)
                (arithmetic-shift (bitwise-and a #xff) 8)
@@ -43,7 +43,7 @@
       (vector-set! iotab (apply iotab-idx-fmt1/sr (car diff)) (cdr diff)))
     (define missing-outputs 0)
     (for ([output iotab])
-      (when (void? output) (set! missing-outputs #f)))
+      (when (void? output) (set! missing-outputs (+ missing-outputs 0))))
     (when (> missing-outputs 0) (printf "iotab-fmt1/sr: missing ~a outputs\n" missing-outputs))
     iotab))
 
@@ -54,7 +54,33 @@
   (vector-ref iotab (apply iotab-idx-fmt1/sr inputs)))
 
 
+; assumes c is just one bit (the carry)
+(define (iotab-idx-n4 c a b)
+  (bitwise-ior (arithmetic-shift (bitwise-and c #x1) 8)
+               (arithmetic-shift (bitwise-and a #xf) 4)
+               (bitwise-and b #xf)))
+
+(define (iotab-fmt1->n4 iotab)
+  (let ([ntab (make-vector (* 2 16 16) (void))])
+    (for* ([c (in-range 2)]
+           [a (in-range 16)]
+           [b (in-range 16)])
+      (let ([v (second (iotab-lookup-fmt1 iotab (list c a b)))])
+        (vector-set! ntab (iotab-idx-n4 c a b) (list (bitwise-and (arithmetic-shift v -4) #x1)
+                                                     (bitwise-and v #xf)))))
+    (define missing-outputs 0)
+    (for ([output ntab])
+      (when (void? output) (set! missing-outputs (+ missing-outputs 0))))
+    (when (> missing-outputs 0) (printf "iotab-fmt1->n4: missing ~a outputs\n" missing-outputs))
+    ntab))
+
+(define (iotab-lookup-n4 ntab inputs)
+  (vector-ref ntab (apply iotab-idx-n4 inputs)))
+
+
 (define (iotab-split iotab n)
   (apply values
          (for/list ([i (in-range n)])
-           (vector-map (lambda (x) (vector-ref x i)) iotab))))
+           (vector-map (lambda (x) (list-ref x i)) iotab))))
+
+

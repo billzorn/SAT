@@ -12,11 +12,12 @@
 (define msp430fr5969.ld (build-path msptools-include "msp430fr5969.ld"))
 
 ; general mspgcc assembler
-(define (mspgcc-compile-with-arguments infile outfile arguments)
-  (unless (file-exists? infile)
-    (raise-argument-error 'msp430fr5969-as-nostdlib "path to assemblable file" infile))
+(define (mspgcc-compile-with-arguments infiles outfile arguments)
+  (for ([infile infiles])
+    (unless (file-exists? infile)
+      (raise-argument-error 'msp430fr5969-as-nostdlib "path to assemblable file" infile)))
   (define-values (sp sp-stdout sp-stdin sp-stderr)
-    (apply subprocess #f #f #f mspgcc (append arguments (list infile "-o" outfile))))
+    (apply subprocess #f #f #f mspgcc (append arguments infiles (list "-o" outfile))))
   (close-output-port sp-stdin)
   (subprocess-wait sp)
   (define stdout-data (port->string sp-stdout))
@@ -34,6 +35,6 @@
 
 ; variants
 
-(define (msp430fr5969-as-nostdlib infile outfile)
+(define (msp430fr5969-as-nostdlib infiles outfile)
   (mspgcc-compile-with-arguments
-   infile outfile (list "-nostdlib" "-L" msptools-include "-T" msp430fr5969.ld)))
+   infiles outfile (list "-nostdlib" "-L" msptools-include "-T" msp430fr5969.ld)))
