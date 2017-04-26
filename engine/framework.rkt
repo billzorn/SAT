@@ -1,38 +1,16 @@
-#lang rosette
+#lang racket
 
 (provide framework@ framework^
          state state-mmaps state?
-         op op? define-ops 
          decoded decoded?
          operand operand?
-         stepctx stepctx? stepctx-pc stepctx-sr
-         addr-expression constant ref add mul)
+         stepctx stepctx? stepctx-pc stepctx-sr)
 
-(require "implementation-sig.rkt")
-
-; Domain Specific Language for describing operations over processor state
-
-(struct addr-expression () #:transparent)
-
-(struct constant addr-expression (i) #:transparent)
-(struct ref addr-expression (map addr) #:transparent)
-(struct add addr-expression (a1 a2) #:transparent)
-(struct mul addr-expression (a1 i) #:transparent)
-(struct switch addr-expression () #:transparent)
+(require "implementation-sig.rkt" "framework-addr.rkt")
 
 ; Engine framework
 
 (struct state (mmaps) #:transparent)
-
-(struct op () #:transparent)
-(define-syntax (define-ops stx)
-  (syntax-case stx ()
-    [(_ [id])
-     #'(begin (struct id op () #:transparent))]
-    [(_ [id more ...])
-     #'(begin
-         (define-ops [id])
-         (define-ops [more ...]))]))
 
 ; decoded: Common struct for passing around the result of instruction decoding
 ;  op: opcode of the instruction
@@ -63,36 +41,13 @@
 (struct stepctx (pc [sr #:mutable] op1 op2 [dst #:mutable]) #:transparent)
 
 (define-signature framework^
-  (perform-read    ; (addr-expression? state? -> bitvector?)
-   perform-write   ; (addr-expression? state? bitvector? -> void?)
-   read-op         ; (state? integer? operand? -> bitvector?) 
+  (read-op         ; (state? integer? operand? -> bitvector?) 
    write-op        ; (state? integer? operand? bitvector? -> void) 
    step))          ; (state? instr-stream? -> void?)
 
 (define-unit framework@
-  (import implementation^)
+  (import implementation^ framework-addr^)
   (export framework^)
-
-  ; The following functions evaluate addressing queries to actual reads/writes
-  ; They can be thought of as simple interpreters of the DSL that actually run
-  ; queries written in it.
-
-  ; perform-read takes an addressing query and performs the actual value retrieval from
-  ; the state.
-
-  (define (perform-read bw)
-    (lambda (state addr)
-      (match addr
-        [(constant i) i]
-        [(ref map a1) ((mmap-ref map bw) state ((perform-read bw) state a1))]
-        [(add a1 a2) (+ ((perform-read bw) state a1) ((perform-read bw) state a2))]
-        [(mul a1 i) (* i ((perform-read bw) state a1))])))
-
-  (define (perform-write bw)
-    (lambda (state addr val)
-      (match addr
-        ; The outermost expression of a write must be a ref.
-        [(ref map addr) ((mmap-set! map bw) state ((perform-read bw) state addr) val)])))
 
   ; read-op and write-op perform a read or write of the state using the address
   ; computed by the implementation for the given operand
@@ -114,22 +69,14 @@
   ; concrete values for operators
   (define (step/exec op bw ctx)
     (match ctx [(stepctx _ sr op1 op2 _)
-      ; TODO: zero-extend or sign-extend?
-      (set-stepctx-dst! ctx (zero-extend 
-        (for/fold ([result null]) 
-                  ([i (in-range 0 bw 4)])
-          (let* ([op1 (extract (+ i 3) i op1)]
-                 [op2 (extract (+ i 3) i op2)]
-                 [dst (dispatch op sr op1 op2)]
-                 [sr  (dispatch-sr op sr op1 op2 dst)])
-            ; Combine bits i : i+3 with existing result
-            (if (null? result) dst (concat dst result))))
-        (type-of (impl-bv 0))))
-      (set-stepctx-sr! ctx sr)]))
+      (let* ([dst (dispatch op sr op1 op2)]
+             [sr  (dispatch-sr op sr op1 op2 dst)])
+      (set-stepctx-dst! ctx dst)
+      (set-stepctx-sr! ctx sr))]))
 )
 
 ; To-do:
-; ✓ dispatch operates on 4 bits at a time
 ; ✓ load correct bitwidth from register/memory
+; - constant generator
 ; - implement symbolic-compatible interval map
 ; - test other operand types
