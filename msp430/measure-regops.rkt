@@ -8,7 +8,7 @@
 
 (provide
  ; information for msp430fr5969 reference implementation
- regops-source regops-elf regops-syms
+ regops-sources regops-elf regops-syms
  ; setup
  measurement-kernel-compile
  measurement-kernel-symbols
@@ -22,7 +22,8 @@
 (define here (get-here))
 
 ; reference implementation
-(define regops-source (build-path here "asm/measure-ram-regops.s"))
+(define regops-sources (list (build-path here "asm/measure-ram-regops.s")
+                            (build-path here "asm/catchall.s")))
 (define regops-elf    (build-path here "asm/measure-ram-regops.elf"))
 (define regops-syms  '(_start
                        _rand
@@ -58,7 +59,7 @@
 ; Returns the output of the assembler - the return code, data on stdout, and data
 ; on stderr.
 (define (measurement-kernel-compile
-         #:source [source regops-source]
+         #:source [source regops-sources]
          #:elf    [elf regops-elf])
   (msp430fr5969-as-nostdlib source elf))
 
