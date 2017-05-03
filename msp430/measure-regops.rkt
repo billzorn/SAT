@@ -33,6 +33,7 @@
                        _max_iters
                        _set_arg_r1
                        _set_arg_r2
+                       _set_arg_sr
                        _tmp_r1
                        _tmp_r2
                        _test_critical
@@ -161,6 +162,7 @@
   (defsym _max_iters)
   (defsym _set_arg_r1)
   (defsym _set_arg_r2)
+  (defsym _set_arg_sr)
   (defsym _tmp_r1)
   (defsym _tmp_r2)
   (defsym _test_critical)
@@ -208,10 +210,23 @@
                            "given iterations" max_iters))
 
   ; setup register argument logic ; mov.w &_tmp_rn, rn
-  (define rsrc-logic (append (list (bitwise-ior #x10 rsrc) #x42)
+  (define rsrc-logic (append (list #x00 #x18 (bitwise-ior #x50 rsrc) #x42)
                              (le-word->bytes _tmp_r1)))
-  (define rdst-logic (append (list (bitwise-ior #x10 rdst) #x42)
+  (define rdst-logic (append (list #x00 #x18 (bitwise-ior #x50 rdst) #x42)
                              (le-word->bytes _tmp_r2)))
+
+  (unless (and (= (length rsrc-logic) (- _set_arg_r2 _set_arg_r1))
+               (= (length rdst-logic) (- _set_arg_sr _set_arg_r2))
+               (< _set_arg_r1 #x10000)
+               (< _set_arg_r2 #x10000)
+               (< _set_arg_sr #x10000))
+    (raise-arguments-error 'measure-regops
+                           "invalid argument setup logic"
+                           "rsrc opcodes" rsrc-logic
+                           "rdst opcodes" rdst-logic
+                           "_set_arg_r1" (format "0x~x" _set_arg_r1)
+                           "_set_arg_r2" (format "0x~x" _set_arg_r2)
+                           "_set_arg_sr" (format "0x~x" _set_arg_sr)))
 
   ; load logic and opcodes
   (msp-mw mspd _set_arg_r1 rsrc-logic)

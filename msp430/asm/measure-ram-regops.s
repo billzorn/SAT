@@ -4,9 +4,9 @@
 
 .section .bss
 .balign 2
-_tmp_r1:	.skip 2
-_tmp_r2:	.skip 2
-_tmp_sr:	.skip 2
+_tmp_r1:	.skip 4
+_tmp_r2:	.skip 4
+_tmp_sr:	.skip 4
 _res:	.skip 2
 _ressp:	.skip 4
 _ressr:	.skip 4
@@ -27,11 +27,11 @@ _rand_r4:
 _rand_end:
 
 _arg1:
-	.skip 48
+	.skip 96
 _arg2:
-	.skip 48
+	.skip 96
 _argsr:
-	.skip 48
+	.skip 96
 
 _results:
 	.skip 1536
@@ -102,10 +102,10 @@ _loop:
 	JL	_loop_done	; Yes, we're done.
 	
 	;; set up arguments
-	MOV.W	@R4+, &_tmp_r1
-	MOV.W	@R5+, &_tmp_r2
-	MOV.W	@R6+, &_tmp_sr
-	AND.W	#0x0107, &_tmp_sr ; clear invalid flags
+	MOVX.A	@R4+, &_tmp_r1
+	MOVX.A	@R5+, &_tmp_r2
+	MOVX.A	@R6+, &_tmp_sr
+	ANDX.A	#0x00107, &_tmp_sr ; clear invalid flags
 
 	;; save the current register state
 	MOV.W	#_save_end, SP
@@ -118,9 +118,9 @@ _loop:
 
 	;; initialize test data
 _set_arg_r1:
-	MOV.W	&_tmp_r1, R4
+	MOVX.A	&_tmp_r1, R4
 _set_arg_r2:
-	MOV.W	&_tmp_r2, R5
+	MOVX.A	&_tmp_r2, R5
 _set_arg_sr:
 	MOV.W	&_tmp_sr, SR
 
