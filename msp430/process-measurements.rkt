@@ -83,4 +83,20 @@
          (for/list ([i (in-range n)])
            (vector-map (lambda (x) (list-ref x i)) iotab))))
 
+(define (sr-carry sr) (bitwise-and sr #x1))
 
+(define (iotab-fmt1-sample iotab nsamples)
+  (for/vector #:length nsamples 
+              ([i (in-range nsamples)])
+    (let* ([a (random 256)] 
+          [b (random 256)] 
+          [sr (random 16)])
+      (append (list (sr-carry sr) a b) 
+              (iotab-lookup-fmt1 iotab (list sr a b))))))
+
+(define (iotab-split-samples iotab n)
+  (apply values
+         (for/list ([i (in-range n)])
+           (vector-map (lambda (x) 
+                         (list (list-ref x 0) (list-ref x 1) (list-ref x 2) (list-ref x (+ i 3))))
+                       iotab))))
