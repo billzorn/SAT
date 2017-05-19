@@ -18,7 +18,7 @@
   (search #:metasketch `(msp-simpleop postcond arity #:pre precond)
           #:threads threads
           #:timeout timeout
-          #:bitwidth 8
+          #:bitwidth 9
           #:exchange-samples #t
           #:exchange-costs #t
           #:use-structure #t
@@ -28,4 +28,4 @@
           #:verifier 'kodkod%
           #:verbose #t))
 
-(synthesize-operation valid-inputs-bt dadd.b-sample-v/post 3)
+(synthesize-operation valid-inputs-b16 add.b-sample-v/post 3)

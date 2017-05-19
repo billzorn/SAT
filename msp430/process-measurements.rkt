@@ -53,6 +53,15 @@
 (define (iotab-lookup-fmt1/sr iotab inputs)
   (vector-ref iotab (apply iotab-idx-fmt1/sr inputs)))
 
+(define (sr-carry sr)                       (bitwise-and sr #b000000001))
+(define (sr-zero sr)      (arithmetic-shift (bitwise-and sr #b000000010) -1))
+(define (sr-neg sr)       (arithmetic-shift (bitwise-and sr #b000000100) -2))
+(define (sr-overflow sr)  (arithmetic-shift (bitwise-and sr #b100000000) -8))
+
+(define (iotab-entry-separate iotab-entry)
+  (let ([sr (first iotab-entry)]
+        [val (second iotab-entry)])
+    (list val (sr-carry sr) (sr-zero sr) (sr-neg sr) (sr-overflow sr))))
 
 ; assumes c is just one bit (the carry)
 (define (iotab-idx-n4 c a b)
@@ -83,20 +92,24 @@
          (for/list ([i (in-range n)])
            (vector-map (lambda (x) (list-ref x i)) iotab))))
 
-(define (sr-carry sr) (bitwise-and sr #x1))
+(define (iotab-sample iotab sr a b)
+  (append (list (sr-carry sr) a b) 
+    (iotab-entry-separate (iotab-lookup-fmt1 iotab (list sr a b)))))
 
 (define (iotab-fmt1-sample iotab nsamples)
-  (for/vector #:length nsamples 
-              ([i (in-range nsamples)])
-    (let* ([a (random 256)] 
-          [b (random 256)] 
-          [sr (random 16)])
-      (append (list (sr-carry sr) a b) 
-              (iotab-lookup-fmt1 iotab (list sr a b))))))
+  (vector-append
+    ; include a couple sanity check values
+    (vector (iotab-sample iotab 0 0 0))
+    (vector (iotab-sample iotab 0 #xff #xff))
+    (for/vector #:length (- nsamples 2)
+                ([i (in-range (- nsamples 2))])
+      (let ([a (random 256)] 
+            [b (random 256)] 
+            [sr (random 16)])
+        (iotab-sample iotab sr a b)))))
 
 (define (iotab-split-samples iotab n)
   (apply values
          (for/list ([i (in-range n)])
-           (vector-map (lambda (x) 
-                         (list (list-ref x 0) (list-ref x 1) (list-ref x 2) (list-ref x (+ i 3))))
+           (vector-map (lambda (x) (list (list-ref x 0) (list-ref x 1) (list-ref x 2) (list-ref x (+ i 3))))
                        iotab))))
