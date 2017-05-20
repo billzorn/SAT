@@ -26,15 +26,26 @@
           #:widening #f
           #:synthesizer 'kodkod-incremental%
           #:verifier 'kodkod%
-          #:verbose #f))
+          #:verbose #t))
 
-(displayln "xor.b:")
-(synthesize-operation valid-inputs-b16 xor.b-sample-val/post 3)
+(displayln "add.b:")
+(synthesize-operation valid-inputs-b16 add.b-sample-val/post 3)
 (displayln " - flag c:")
-(synthesize-operation valid-inputs-b16 xor.b-sample-c/post 4)
+(synthesize-operation valid-inputs-b16 add.b-sample-c/post 4)
 (displayln " - flag z:")
-(synthesize-operation valid-inputs-b16 xor.b-sample-z/post 4)
+(synthesize-operation valid-inputs-b16 add.b-sample-z/post 4)
 (displayln " - flag n:")
-(synthesize-operation valid-inputs-b16 xor.b-sample-n/post 4)
+(synthesize-operation valid-inputs-b16 add.b-sample-n/post 4)
 (displayln " - flag v:")
-(synthesize-operation valid-inputs-b16 xor.b-sample-v/post 4)
+(synthesize-operation valid-inputs-b16 add.b-sample-v/post 4)
+
+;(displayln "xor.b:")
+;(synthesize-operation valid-inputs-b16 xor.b-sample-val/post 3)
+;(displayln " - flag c:")
+;(synthesize-operation valid-inputs-b16 xor.b-sample-c/post 4)
+;(displayln " - flag z:")
+;(synthesize-operation valid-inputs-b16 xor.b-sample-z/post 4)
+;(displayln " - flag n:")
+;(synthesize-operation valid-inputs-b16 xor.b-sample-n/post 4)
+;(displayln " - flag v:")
+;(synthesize-operation valid-inputs-b16 xor.b-sample-v/post 4)
