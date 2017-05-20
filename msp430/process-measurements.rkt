@@ -21,6 +21,10 @@
        (for/list ([rn inputs]) (vector-ref in-regs rn))
        (for/list ([rn outputs]) (vector-ref out-regs rn))))))
 
+; leaves all inputs and outputs as-is, keeps last instances of duplicate inputs
+(define (iotab-hash/sr diffs)
+  (make-immutable-hash diffs))
+
 (define-syntax-rule (compress-sr x)
   (bitwise-ior (bitwise-and x 7) (bitwise-and (arithmetic-shift x -5) 8)))
 

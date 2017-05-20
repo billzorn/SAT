@@ -257,7 +257,7 @@
       r))
 
   (define (expand-inputs inputs)
-    (flatten (for/list ([i inputs]) (le-word->bytes i))))
+    (flatten (for/list ([i inputs]) (le-dword->bytes i))))
 
   (define (get-outputs raw-output idx)
     (for/vector ([i (in-range idx (+ idx 64) 4)])
