@@ -1,13 +1,13 @@
 #lang s-exp rosette
 
-(require "../../synapse/opsyn/engine/search.rkt"
-         "../../synapse/opsyn/bv/lang.rkt"  
-         "../../synapse/opsyn/metasketches/superoptimization.rkt"  
-         "../../synapse/opsyn/metasketches/cost.rkt")
+(require "../synapse/opsyn/engine/search.rkt"
+         "../synapse/opsyn/bv/lang.rkt"  
+         "../synapse/opsyn/metasketches/superoptimization.rkt"  
+         "../synapse/opsyn/metasketches/cost.rkt")
 
 (require "../data/iotabs.rkt"
          "../msp430/process-measurements.rkt"
-         "../../synapse/benchmarks/msp430/regops.rkt")
+         "../synapse/benchmarks/msp430/regops.rkt")
 
 (provide (all-defined-out))
 
