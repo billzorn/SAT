@@ -39,59 +39,57 @@
         bvadd bvsub bvand bvor bvnot bvshl bvashr bvlshr 
         bvneg bvredor bvxor bveq))
 
-; simple ops (likely defined by 1-3 instruction bv programs)
+(define (valid-inputs.b inputs)
+  (assert (and (= (first inputs) (bitwise-and (first inputs) #x1))
+               (= (second inputs) (bitwise-and (second inputs) #xff))
+               (= (third inputs) (bitwise-and (third inputs) #xff)))))
 
-; sample some number of values from the data table and hope that the resulting assertions
-; are sufficient to more or less uniquely define the operation
+(define (valid-inputs.w inputs)
+  (assert (and (= (first inputs) (bitwise-and (first inputs) #x1))
+               (= (second inputs) (bitwise-and (second inputs) #xffff))
+               (= (third inputs) (bitwise-and (third inputs) #xffff)))))
 
-(define (iotab-sample->post samples arity result-ind)
-  (define (post P inputs)
-    (for* ([sample (in-vector samples)])
-      (let* ([inputs (take sample arity)]
-             [x (list-ref sample result-ind)]
-             [assertion (= (bitwise-and (interpret P inputs) #xff) x)])
-        (assert assertion))))
-  post)
+(define iotabs (make-hash))
+(define samples (make-hash))
+(define sample/posts (make-hash))
 
-(define-syntax (define-sample-post stx)
-  (syntax-case stx ()
-    [(_ iotab type value)
-     (with-syntax ([name (format-id #'iotab #:source #'iotab "~a-sample-~a/post" (syntax-e #'iotab) (syntax-e #'type))])
-       #'(define name value))]))
+; Turn an iotab sample into a postcondition function
+(define (iotab-sample->post s)
+  (λ (arity result-ind)
+    (λ (P inputs)
+      (for* ([sample (in-vector (hash-ref samples s))])
+        (let* ([inputs (take sample arity)]
+               [x (list-ref sample result-ind)]
+               [assertion (= (bitwise-and (interpret P inputs) #xff) x)])
+          (assert assertion))))))
 
-; defines the following values (given e.g. an iotab called add.b):
-;  - add.b-sample-val/post
-;  - add.b-sample-c/post
-;  - add.b-sample-z/post
-;  - add.b-sample-v/post
-;  - add.b-sample-f/post
-(define-syntax-rule (define-iotab-post/sample iotab)
-  (begin (define samples (iotab-fmt1-sample iotab 512))
-    (define-sample-post iotab val (iotab-sample->post samples 3 3))
-    (define-sample-post iotab c (iotab-sample->post samples 4 4))
-    (define-sample-post iotab z (iotab-sample->post samples 4 5))
-    (define-sample-post iotab n (iotab-sample->post samples 4 6))
-    (define-sample-post iotab v (iotab-sample->post samples 4 7))))
 
-; Note: the postconditions for the flags have an arity of 4, because they can
-; also use the result of the computation as part of the computation of the flag
-; value.
+(hash-set! iotabs `mov.b mov.b)
+(hash-set! samples `mov.b (iotab-fmt1-sample mov.b 512))
+(hash-set! sample/posts `mov.b (iotab-sample->post `mov.b))
 
-; these should find a valid result in (less than) 4 instructions for most values
-; and flags. notable exceptions: overflow flag for add.b
-  
-(define-iotab-post/sample xor.b)
-(define-iotab-post/sample add.b)
-(define-iotab-post/sample sub.b)
-(define-iotab-post/sample and.b)
-(define-iotab-post/sample cmp.b)
-(define-iotab-post/sample addc.b)
-(define-iotab-post/sample subc.b)
-(define-iotab-post/sample bic.b)
-(define-iotab-post/sample bis.b)
-(define-iotab-post/sample bit.b)
+(hash-set! iotabs `add.b add.b)
+(hash-set! samples `add.b (iotab-fmt1-sample add.b 512))
+(hash-set! sample/posts `add.b (iotab-sample->post `add.b))
 
-; these should probably _not_ find a valid result in 4 instructions
-
-(define-iotab-post/sample dadd.b)
+(define addc.b-samples (iotab-fmt1-sample addc.b 512))
+(define addc.b-sample/post (iotab-sample->post addc.b-samples))
+(define sub.b-samples (iotab-fmt1-sample sub.b 512))
+(define sub.b-sample/post (iotab-sample->post sub.b-samples))
+(define subc.b-samples (iotab-fmt1-sample subc.b 512))
+(define subc.b-sample/post (iotab-sample->post subc.b-samples))
+(define cmp.b-samples (iotab-fmt1-sample cmp.b 512))
+(define cmp.b-sample/post (iotab-sample->post cmp.b-samples))
+(define dadd.b-samples (iotab-fmt1-sample dadd.b 512))
+(define dadd.b-sample/post (iotab-sample->post dadd.b-samples))
+(define bit.b-samples (iotab-fmt1-sample bit.b 512))
+(define bit.b-sample/post (iotab-sample->post bit.b-samples))
+(define bic.b-samples (iotab-fmt1-sample bic.b 512))
+(define bic.b-sample/post (iotab-sample->post bic.b-samples))
+(define bis.b-samples (iotab-fmt1-sample bis.b 512))
+(define bis.b-sample/post (iotab-sample->post bis.b-samples))
+(define xor.b-samples (iotab-fmt1-sample xor.b 512))
+(define xor.b-sample/post (iotab-sample->post xor.b-samples))
+(define and.b-samples (iotab-fmt1-sample and.b 512))
+(define and.b-sample/post (iotab-sample->post and.b-samples))
 

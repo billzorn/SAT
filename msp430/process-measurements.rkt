@@ -103,12 +103,12 @@
 (define (iotab-fmt1-sample iotab nsamples)
   (vector-append
     ; include a couple sanity check values
-    (vector (iotab-sample iotab 0 0 0))
-    (vector (iotab-sample iotab 0 #xff #xff))
-    (vector (iotab-sample iotab 1 0 0))
-    (vector (iotab-sample iotab 1 #xff #xff))
-    (for/vector #:length (- nsamples 2)
-                ([i (in-range (- nsamples 2))])
+    ;(vector (iotab-sample iotab 0 0 0))
+    ;(vector (iotab-sample iotab 0 #xff #xff))
+    ;(vector (iotab-sample iotab 1 0 0))
+    ;(vector (iotab-sample iotab 1 #xff #xff))
+    (for/vector #:length nsamples ;(- nsamples 4)
+                ([i (in-range nsamples)]) ;(- nsamples 4))])
       (let ([a (random 256)] 
             [b (random 256)] 
             [sr (random 16)])
