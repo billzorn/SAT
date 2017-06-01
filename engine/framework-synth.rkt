@@ -49,47 +49,36 @@
                (= (second inputs) (bitwise-and (second inputs) #xffff))
                (= (third inputs) (bitwise-and (third inputs) #xffff)))))
 
+(define (quote->string q)
+  (define o (open-output-string))
+  (write q o)
+  (get-output-string o))
+
+(define (iotab-samples.rkt iotab)
+  (string-append (quote->string iotab) "-samples.rkt.tmp"))
+
 (define iotabs (make-hash))
-(define samples (make-hash))
-(define sample/posts (make-hash))
 
 ; Turn an iotab sample into a postcondition function
-(define (iotab-sample->post s)
-  (λ (arity result-ind)
-    (λ (P inputs)
-      (for* ([sample (in-vector (hash-ref samples s))])
+(define (iotab-sample->post s arity result-ind)
+  (λ (P inputs)
+    (let ([samples (with-input-from-file (iotab-samples.rkt s) read)])
+      (for* ([sample (in-vector samples )])
         (let* ([inputs (take sample arity)]
                [x (list-ref sample result-ind)]
                [assertion (= (bitwise-and (interpret P inputs) #xff) x)])
           (assert assertion))))))
 
+(define-syntax-rule (iotab-generate-samples iotab)
+  (begin
+    (hash-set! iotabs (quote iotab) iotab)
+    (with-output-to-file #:exists 'replace
+      (iotab-samples.rkt (quote iotab))
+      (thunk (write (iotab-fmt1-sample iotab 64))))))
 
-(hash-set! iotabs `mov.b mov.b)
-(hash-set! samples `mov.b (iotab-fmt1-sample mov.b 512))
-(hash-set! sample/posts `mov.b (iotab-sample->post `mov.b))
-
-(hash-set! iotabs `add.b add.b)
-(hash-set! samples `add.b (iotab-fmt1-sample add.b 512))
-(hash-set! sample/posts `add.b (iotab-sample->post `add.b))
-
-(define addc.b-samples (iotab-fmt1-sample addc.b 512))
-(define addc.b-sample/post (iotab-sample->post addc.b-samples))
-(define sub.b-samples (iotab-fmt1-sample sub.b 512))
-(define sub.b-sample/post (iotab-sample->post sub.b-samples))
-(define subc.b-samples (iotab-fmt1-sample subc.b 512))
-(define subc.b-sample/post (iotab-sample->post subc.b-samples))
-(define cmp.b-samples (iotab-fmt1-sample cmp.b 512))
-(define cmp.b-sample/post (iotab-sample->post cmp.b-samples))
-(define dadd.b-samples (iotab-fmt1-sample dadd.b 512))
-(define dadd.b-sample/post (iotab-sample->post dadd.b-samples))
-(define bit.b-samples (iotab-fmt1-sample bit.b 512))
-(define bit.b-sample/post (iotab-sample->post bit.b-samples))
-(define bic.b-samples (iotab-fmt1-sample bic.b 512))
-(define bic.b-sample/post (iotab-sample->post bic.b-samples))
-(define bis.b-samples (iotab-fmt1-sample bis.b 512))
-(define bis.b-sample/post (iotab-sample->post bis.b-samples))
-(define xor.b-samples (iotab-fmt1-sample xor.b 512))
-(define xor.b-sample/post (iotab-sample->post xor.b-samples))
-(define and.b-samples (iotab-fmt1-sample and.b 512))
-(define and.b-sample/post (iotab-sample->post and.b-samples))
+(define (iotab-add-sample iotab sample)
+  (let ([samples (with-input-from-file (iotab-samples.rkt iotab) read)])
+    (with-output-to-file #:exists 'replace
+      (iotab-samples.rkt iotab) 
+      (thunk (write (vector-append samples (vector sample)))))))
 

@@ -2,6 +2,8 @@
 *~
 \#*
 .\#*
+*.tmp
+*.bak
 
 # Compiled racket bytecode
 compiled
