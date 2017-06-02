@@ -34,6 +34,11 @@
                (arithmetic-shift (bitwise-and a #xff) 8)
                (bitwise-and b #xff)))
 
+(define (iotab-idx-fmt1.w sr a b)
+  (bitwise-ior (arithmetic-shift (bitwise-and sr #xf) 32)
+               (arithmetic-shift (bitwise-and a #xffff) 16)
+               (bitwise-and b #xffff)))
+
 ; assumes sr is not compressed, i.e. 0xv00000nzc
 (define (iotab-idx-fmt1/sr sr a b)
   (bitwise-ior (arithmetic-shift (bitwise-and (compress-sr sr) #xf) 16)
@@ -96,20 +101,28 @@
          (for/list ([i (in-range n)])
            (vector-map (lambda (x) (list-ref x i)) iotab))))
 
-(define (iotab-sample iotab sr a b)
+(define (iotab-sample.b iotab sr a b)
   (append (list (sr-carry sr) a b) 
     (iotab-entry-separate (iotab-lookup-fmt1 iotab (list sr a b)))))
 
-(define (iotab-fmt1-sample iotab nsamples)
+(define (iotab-sample.w iotab sr a b)
+  (append (list (sr-carry sr) a b) 
+    (iotab-entry-separate (hash-ref iotab (list sr a b)))))
+
+(define (iotab-fmt1.b-sample iotab nsamples)
   (vector-append
-    ; include a couple sanity check values
-    ;(vector (iotab-sample iotab 0 0 0))
-    ;(vector (iotab-sample iotab 0 #xff #xff))
-    ;(vector (iotab-sample iotab 1 0 0))
-    ;(vector (iotab-sample iotab 1 #xff #xff))
-    (for/vector #:length nsamples ;(- nsamples 4)
-                ([i (in-range nsamples)]) ;(- nsamples 4))])
+    (for/vector #:length nsamples
+                ([i (in-range nsamples)])
       (let ([a (random 256)] 
             [b (random 256)] 
             [sr (random 16)])
-        (iotab-sample iotab sr a b)))))
+        (iotab-sample.b iotab sr a b)))))
+
+(define (iotab-fmt1.w-sample iotab nsamples)
+  (vector-append
+    (for/vector #:length nsamples
+                ([i (in-range nsamples)])
+      (let ([a (random 65536)] 
+            [b (random 65536)] 
+            [sr (random 2)])
+        (iotab-sample.w iotab sr a b)))))

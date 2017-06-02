@@ -59,22 +59,25 @@
 
 (define iotabs (make-hash))
 
+(define (eq-under-width width a b)
+  (define mask (- (arithmetic-shift 1 width) 1))
+  (= (bitwise-and a mask) (bitwise-and b mask)))
+
 ; Turn an iotab sample into a postcondition function
-(define (iotab-sample->post s arity result-ind)
+(define (iotab-sample->post s #:arity (arity 3) #:index (result-ind 0) #:width (width 8))
   (λ (P inputs)
     (let ([samples (with-input-from-file (iotab-samples.rkt s) read)])
       (for* ([sample (in-vector samples )])
         (let* ([inputs (take sample arity)]
                [x (list-ref sample result-ind)]
-               [assertion (= (bitwise-and (interpret P inputs) #xff) x)])
+               [assertion (eq-under-width width (interpret P inputs) x)])
           (assert assertion))))))
 
-(define-syntax-rule (iotab-generate-samples iotab)
-  (begin
-    (hash-set! iotabs (quote iotab) iotab)
+(define (iotab-generate-samples iotab #:nsamples (nsamples 64) #:width (width 8))
+  (let ([sample-fn (if (= width 8) iotab-fmt1.b-sample iotab-fmt1.w-sample)])
     (with-output-to-file #:exists 'replace
-      (iotab-samples.rkt (quote iotab))
-      (thunk (write (iotab-fmt1-sample iotab 64))))))
+      (iotab-samples.rkt iotab)
+      (thunk (write (sample-fn (hash-ref iotabs iotab) nsamples))))))
 
 (define (iotab-add-sample iotab sample)
   (let ([samples (with-input-from-file (iotab-samples.rkt iotab) read)])
