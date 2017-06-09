@@ -39,20 +39,27 @@
   (let* ([pre (case width
                     [(8) `valid-inputs.b]
                     [(16) `valid-inputs.w])]
+         [post `(iotab-sample->post (quote ,iotab) #:arity ,arity #:index ,(+ arity index) #:width ,width)]
          [iotab-sample (case width
                     [(8) iotab-sample.b]
                     [(16) iotab-sample.w])]
-    [post `(iotab-sample->post (quote ,iotab) #:arity ,arity #:index ,(+ arity index) #:width ,width)]
-    [sat #t])
+         [tab (hash-ref iotabs iotab)]
+         [sat #t])
     (define (check)
       (set! sat #t)
       (let ([p (synthesize-op width pre post arity)])
         (if (equal? p #f) #f
+          ; todo need a general way to iterate over possible inputs
           (for* ([c (in-range 2)]
                  [a (in-range (arithmetic-shift 1 width))]
                  [b (in-range (arithmetic-shift 1 width))])
             #:break (not sat)
-            (define sample (iotab-sample (hash-ref iotabs iotab) c a b))
+            (define sample (iotab-sample tab c a b))
+          ;(for ([kv (in-list (hash->list tab))])
+          ;  #:break (not sat)
+          ;  (define-values (key value) (values (first kv) (list-tail kv 1)))
+          ;  (define-values (c a b) (values (sr-carry (first key)) (second key) (third key)))
+          ;  (define sample (append key (iotab-entry-separate value)))
             (define result (list-ref sample 3))
             (define inputs (list c a b result))
             (define val (list-ref sample (+ arity index)))
@@ -74,19 +81,19 @@
     (printf "~a/n: ~v\n" (quote->string iotab) (synthesize-and-check iotab #:width width #:arity 4 #:index 2))
     (printf "~a/v: ~v\n" (quote->string iotab) (synthesize-and-check iotab #:width width #:arity 4 #:index 3))))
 
-(require "data/io/add.w.rkt")
+;(require "data/io/add.w.rkt")
 
-(synthesize/flags 16 add.w)
+; (synthesize/flags 16 add.w)
 
-;(synthesize/flags mov.b)
-;(synthesize/flags add.b)
-;(synthesize/flags addc.b)
-;(synthesize/flags sub.b)
-;(synthesize/flags subc.b)
-;(synthesize/flags cmp.b)
-;(synthesize/flags dadd.b)
-;(synthesize/flags bit.b)
-;(synthesize/flags bic.b)
-;(synthesize/flags bis.b)
-;(synthesize/flags xor.b)
-;(synthesize/flags and.b)
+(synthesize/flags 8 mov.b)
+(synthesize/flags 8 add.b)
+(synthesize/flags 8 addc.b)
+(synthesize/flags 8 sub.b)
+(synthesize/flags 8 subc.b)
+(synthesize/flags 8 cmp.b)
+(synthesize/flags 8 dadd.b)
+(synthesize/flags 8 bit.b)
+(synthesize/flags 8 bic.b)
+(synthesize/flags 8 bis.b)
+(synthesize/flags 8 xor.b)
+(synthesize/flags 8 and.b)

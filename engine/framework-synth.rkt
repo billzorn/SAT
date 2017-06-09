@@ -24,20 +24,15 @@
              #:post  post
              #:cost-model cost-model))
 
-(define bvops-cmp.b
-  (list (bv 0) (bv 1) (bv 7) (bv 8) (bv #x80) (bv #x100)
-        bvadd bvsub bvand bvor bvnot bvshl bvashr bvlshr 
-        bvneg bvredor bvxor bvsle bvslt bveq bvule bvult))
-
 (define bvops.b
-  (list (bv 0) (bv 1) (bv 7) (bv 8) (bv #x80) (bv #x100)
-        bvadd bvsub bvand bvor bvnot bvshl bvashr bvlshr 
-        bvneg bvredor bvxor bveq))
+  (list (bv 0) (bv 1) bit8 bit9
+        bvadd bvsub bvand bvor bvnot bvneg bvxor bveq
+        nop eq0 isneg ispos))
 
 (define bvops.w
-  (list (bv 0) (bv 1) (bv 15) (bv 16) (bv #x8000) (bv #x10000)
-        bvadd bvsub bvand bvor bvnot bvshl bvashr bvlshr 
-        bvneg bvredor bvxor bveq))
+  (list (bv 0) (bv 1) bit16 bit17
+        bvadd bvsub bvand bvor bvnot bvneg bvxor bveq
+        nop eq0 isneg ispos))
 
 (define (valid-inputs.b inputs)
   (assert (and (= (first inputs) (bitwise-and (first inputs) #x1))
