@@ -14,7 +14,7 @@
 
 (define (bvop.b-simple post arity
                #:finite? [finite? #t]
-               #:maxlength [maxlength 3]
+               #:maxlength [maxlength 4]
                #:cost-model [cost-model constant-cost-model]
                #:pre (pre void))
   (superopt∑ #:instructions bvops.b
@@ -27,12 +27,12 @@
 (define bvops.b
   (list (bv 0) (bv 1) bit8 bit9
         bvadd bvsub bvand bvor bvnot bvneg bvxor bveq
-        nop eq0 isneg ispos))
+        pass eq0 samesign8 diffsign8))
 
 (define bvops.w
   (list (bv 0) (bv 1) bit16 bit17
         bvadd bvsub bvand bvor bvnot bvneg bvxor bveq
-        nop eq0 isneg ispos))
+        pass eq0))
 
 (define (valid-inputs.b inputs)
   (assert (and (= (first inputs) (bitwise-and (first inputs) #x1))

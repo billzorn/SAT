@@ -45,6 +45,19 @@
    write-op        ; (state? integer? operand? bitvector? -> void) 
    step))          ; (state? instr-stream? -> void?)
 
+; Utility functions
+
+(define (stream-drop s n)
+  (if (= n 0) s (stream-drop (stream-rest s) (- n 1))))
+
+;(define-syntax (cond/masked stx)
+;  (syntax-case stx ()
+;    [(_ mask test [pred body])
+;     #'(cond
+;         [((bveq-masked mask) test pred) body]
+
+; Framework module
+
 (define-unit framework@
   (import implementation^ framework-addr^)
   (export framework^)
@@ -59,11 +72,12 @@
 
   ; step one instruction ahead in the instruction stream
   (define (step state instr-stream)
-    (match (decode instr-stream) [(cons instr-stream dec)
-      (let* ([ctx (step/read state dec (impl-bv (/ (decoded-bw dec) 8)))])
-        (step/exec (decoded-op dec) (decoded-bw dec) ctx)
-        (step/write state dec ctx)
-        instr-stream)]))
+    (let* ([dec (decode instr-stream)]
+           [taken (decode-taken dec)]
+           [ctx (step/read state dec taken)])
+      (step/exec (decoded-op dec) (decoded-bw dec) ctx)
+      (step/write state dec ctx)
+      (stream-drop instr-stream taken)))
 
   ; dispatch to the implementation-defined processor behavior once we have
   ; concrete values for operators
@@ -76,7 +90,4 @@
 )
 
 ; To-do:
-; ✓ load correct bitwidth from register/memory
-; - constant generator
 ; - implement symbolic-compatible interval map
-; - test other operand types

@@ -5,6 +5,7 @@
 (require "implementation-sig.rkt"
          "framework.rkt" 
          "framework-addr.rkt" 
+         "msp430-synthesized.rkt" 
          "../lib/bv.rkt" 
          "../msp430/regs.rkt" 
          (rename-in "../lib/mem_simple.rkt" [make-memory make-memory/vector] [memory-ref memory-ref/vector] [memory-set! memory-set!/vector] [memory-copy memory-copy/vector])
@@ -89,19 +90,36 @@
                   [else (ref MAP/MEM (ref MAP/REG (constant rsrc)))])])]))
 
   (define (dispatch op sr op1 op2) 
-    (cond
-      ; mov
-      [((bveq-masked #xf000) op (mspx-bv #x4000)) op1]
-      ; dadd
-      [((bveq-masked #xf000) op (mspx-bv #xa000)) (bvadd op1 op2)] ; placeholder
-      ))
+    ((cond
+      [((bveq-masked #xf000) op (mspx-bv #x4000)) msp-mov.b]
+      [((bveq-masked #xf000) op (mspx-bv #x5000)) msp-add.b]
+      ;[((bveq-masked #xf000) op (mspx-bv #x6000)) msp-addc]
+      ;[((bveq-masked #xf000) op (mspx-bv #x7000)) msp-subc]
+      [((bveq-masked #xf000) op (mspx-bv #x8000)) msp-sub.b])
+      ;[((bveq-masked #xf000) op (mspx-bv #x9000)) msp-cmp]
+      ;[((bveq-masked #xf000) op (mspx-bv #xa000)) msp-dadd]
+      ;[((bveq-masked #xf000) op (mspx-bv #xb000)) msp-bit]
+      ;[((bveq-masked #xf000) op (mspx-bv #xc000)) msp-bic]
+      ;[((bveq-masked #xf000) op (mspx-bv #xd000)) msp-bis]
+      ;[((bveq-masked #xf000) op (mspx-bv #xe000)) msp-xor]
+      ;[((bveq-masked #xf000) op (mspx-bv #xf000)) msp-and]) 
+     sr op1 op2))
+
   (define (dispatch-sr op sr op1 op2 dst) 
-    (cond
-      ; mov
-      [((bveq-masked #xf000) op (mspx-bv #x4000)) sr]
-      ; dadd
-      [((bveq-masked #xf000) op (mspx-bv #xa000)) (mspx-bv #xff)] ; placeholder
-      ))
+    ((cond
+      [((bveq-masked #xf000) op (mspx-bv #x4000)) msp-sr-mov.b]
+      [((bveq-masked #xf000) op (mspx-bv #x5000)) msp-sr-add.b]
+      ;[((bveq-masked #xf000) op (mspx-bv #x6000)) msp-sr-addc]
+      ;[((bveq-masked #xf000) op (mspx-bv #x7000)) msp-sr-subc]
+      [((bveq-masked #xf000) op (mspx-bv #x8000)) msp-sr-sub.b])
+      ;[((bveq-masked #xf000) op (mspx-bv #x9000)) msp-sr-cmp]
+      ;[((bveq-masked #xf000) op (mspx-bv #xa000)) msp-sr-dadd]
+      ;[((bveq-masked #xf000) op (mspx-bv #xb000)) msp-sr-bit]
+      ;[((bveq-masked #xf000) op (mspx-bv #xc000)) msp-sr-bic]
+      ;[((bveq-masked #xf000) op (mspx-bv #xd000)) msp-sr-bis]
+      ;[((bveq-masked #xf000) op (mspx-bv #xe000)) msp-sr-xor]
+      ;[((bveq-masked #xf000) op (mspx-bv #xf000)) msp-sr-and]) 
+     sr op1 op2 dst))
 
   ; SECTION: Easily implemented (specified) processor behavior
 
@@ -133,7 +151,13 @@
                [(0) (set! imm0 (stream-first stream)) (set! stream (stream-rest stream))])])
       (case ad
         [(1) (set! imm1 (stream-first stream)) (set! stream (stream-rest stream))])
-      (cons stream (decoded opcode bw (msp430-operand as rsrc imm0) (msp430-operand ad rdst imm1)))))
+      (decoded opcode bw (msp430-operand as rsrc imm0) (msp430-operand ad rdst imm1))))
+
+  (define (decode-taken d)
+    (match d [(decoded opcode bw (msp430-operand as rsrc imm0) (msp430-operand ad rdst imm1))
+      (+ (if (or (and (= as 1) (not (= rsrc 3))) (and (= as 3) (= rsrc 0))) 1 0)
+         (if (= ad 1) 1 0)
+         1)]))
 
   (define (decode-fmt2 stream) (void))
 
