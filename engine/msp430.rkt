@@ -1,6 +1,7 @@
 #lang rosette
 
-(provide msp430-implementation@ msp430-state msp430-state-memory 
+(provide msp430-implementation@ 
+         msp430-state msp430-state-memory msp430-state-registers
          step perform-write 
          MAP/REG MAP/MEM)
 
@@ -22,11 +23,11 @@
 (define MAP/REG 0)
 (define MAP/MEM 1)
 
-(define (msp430-state-memory state) 
-  (vector-ref (state-mmaps state) MAP/MEM))
+(define (msp430-state-memory s) 
+  (vector-ref (state-mmaps s) MAP/MEM))
 
-(define (msp430-state-registers state) 
-  (vector-ref (state-mmaps state) MAP/REG))
+(define (msp430-state-registers s) 
+  (vector-ref (state-mmaps s) MAP/REG))
 
 (define-unit msp430-implementation@
   (import)
