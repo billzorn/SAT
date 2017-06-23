@@ -7,8 +7,6 @@
          "msp430/process-measurements.rkt"
          "engine/framework-synth.rkt")
 
-(provide (all-defined-out))
-
 (define timeout 1800)
 (define threads 2)
 
