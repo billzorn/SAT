@@ -26,7 +26,10 @@
                      (bvor (mspx-bv (first vals)) (bvshl (mspx-bv (second vals)) (mspx-bv 8)))))
                  (f (+ addr 2) (drop vals 2))))])
     (for ([interval (in-list (msp-loadelf elf-file))])
-         (f (first interval) (rest interval)))))
+         (f (first interval) (rest interval))))
+  (let ([entrypt (memory-ref (mem) (arithmetic-shift #xfffe -1))])
+    (printf "Entry point ~a\n" (number->string (bitvector->integer entrypt) 16))
+    (vector-set! (regs) 0 entrypt)))
 
 (elf-file
   (command-line 
