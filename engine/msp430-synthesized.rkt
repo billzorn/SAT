@@ -1,8 +1,9 @@
 #lang rosette
+(require "../lib/bv.rkt")
 
-(require "../msp430/process-measurements.rkt")
 (define (pass x) x)
 (define (eq0 x) (if (bveq x (bv 0 20)) (bv 1 1) (bv 0 1)))
+(define (sr-carry sr) (if (bit-set? sr 0) (bv 1 1) (bv 0 1)))
 (provide (all-defined-out))
 
 (define (msp-mov.b sr op1 op2) (pass op1))

@@ -41,17 +41,23 @@
     [("-i" "--interactive") ("Run the emulator in interactive mode." 
                              "In non-interactive mode, the emulator will load the program" 
                              "specified by <elf-file>, run it, and then print the resulting"
-                             "register file.")
+                             "registers.")
                             (interactive-mode #t)]
     #:ps ""
     #:args ([elf-file ""]) rest
     elf-file))
 
+(machine-state (msp430-state 16 #xfffe))
+
+(define (run state)
+  (let ([pc-init (vector-ref (regs) 0)])
+    (step state)
+    (unless (bveq (vector-ref (regs) 0) pc-init) (run state))))
+
 (define (trunc8 x)
   (bvand x (mspx-bv #x000ff)))
 (define (high8->low x)
   (trunc8 (bvlshr x (mspx-bv 8))))
-
 
 (define (membyte->string addr)
    (~a #:min-width 2 #:align 'right #:pad-string "0"
@@ -73,6 +79,10 @@
       (bitvector->natural (vector-ref (regs) r)) 
       16)))
 
+(define (printregs)
+  (for ([r (in-range (vector-length (regs)))])
+       (printreg r)))
+
 (define (repl)
   (let* ([line (readline (string-append (emulated-cpu) " > "))]
          [condition (λ (s) (if (equal? s eof) "q" (if (equal? (string-trim s) "") "_" s)))]
@@ -82,14 +92,13 @@
          [quit #f])
     (case cmd
       [("r" "reg" "regs") 
-       (if (not (null? params))
+       (if (null? params)
+         (printregs)
          (for ([r (in-list params)])
            (let ([reg (string->number r)])
              (if (and reg (< reg (vector-length (regs))))
                (printreg reg)
-               (printf "unknown register ~a\n" r))))
-         (for ([r (in-range (vector-length (regs)))])
-              (printreg r)))]
+               (printf "unknown register ~a\n" r)))))]
       [("m" "mem")
        (if (null? params) (printf "usage: mem <addr> [<# bytes>]\n")
          (let ([addr (string->number (first params) 16)]
@@ -98,6 +107,10 @@
            (when (equal? len #f) (printf "invalid length ~a\n" (second params)))
            (unless (equal? addr #f)
              (printmem addr #:length len))))]
+      [("s" "step")
+       (step (machine-state))]
+      [("r" "run")
+       (run (machine-state))]
       [("l" "load") 
        (elf-file (first params))
        (msp430-load (elf-file))
@@ -106,8 +119,6 @@
       [else (printf "unknown command ~a\n" cmd)])
     (unless quit (repl))))
 
-(machine-state (msp430-state 16 #xfffe))
-
 (if (interactive-mode)
   (repl)
-  (begin (msp430-load (elf-file)) (memory-ref (mem) #x2200)))
+  (begin (msp430-load (elf-file)) (run (machine-state)) (printregs)))
