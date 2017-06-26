@@ -1,6 +1,9 @@
 #lang rosette
 
-(provide msp430-implementation@ msp430-state step perform-write MAP/REG MAP/MEM)
+(provide msp430-implementation@ 
+         msp430-state msp430-state-memory msp430-state-registers
+         step perform-write 
+         MAP/REG MAP/MEM)
 
 (require "implementation-sig.rkt"
          "framework.rkt" 
@@ -19,6 +22,12 @@
 
 (define MAP/REG 0)
 (define MAP/MEM 1)
+
+(define (msp430-state-memory s) 
+  (vector-ref (state-mmaps s) MAP/MEM))
+
+(define (msp430-state-registers s) 
+  (vector-ref (state-mmaps s) MAP/REG))
 
 (define-unit msp430-implementation@
   (import)
@@ -125,7 +134,7 @@
 
   (define (decode stream) 
     (let ([peek (stream-first stream)])
-      (if (or (bvuge peek (mspx-bv #x4000)) (bvule peek (mspx-bv #x0fff))) 
+      (if (or (bvuge peek (mspx-bv #x4000))) 
         (decode-fmt1 stream)
         (decode-fmt2 stream))))
 
@@ -154,10 +163,12 @@
       (decoded opcode bw (msp430-operand as rsrc imm0) (msp430-operand ad rdst imm1))))
 
   (define (decode-taken d)
-    (match d [(decoded opcode bw (msp430-operand as rsrc imm0) (msp430-operand ad rdst imm1))
-      (+ (if (or (and (= as 1) (not (= rsrc 3))) (and (= as 3) (= rsrc 0))) 1 0)
-         (if (= ad 1) 1 0)
-         1)]))
+    (match d 
+      [(decoded opcode bw (msp430-operand as rsrc imm0) (msp430-operand ad rdst imm1))
+        (+ (if (or (and (= as 1) (not (= rsrc 3))) (and (= as 3) (= rsrc 0))) 1 0)
+          (if (= ad 1) 1 0)
+          1)]
+      [void 0]))
 
   (define (decode-fmt2 stream) (void))
 
@@ -165,7 +176,7 @@
 
   (define (step/read state dec pc-incr)
     (match dec [(decoded op bw op1 op2)
-      (let ([pc (bvadd (register-ref state REG/PC) pc-incr)]
+      (let ([pc (bvadd (register-ref state REG/PC) (impl-bv pc-incr))]
             [sr (register-ref state REG/SR)]
             [op1-val (read-op state bw op1)]
             [op2-val (read-op state bw op2)])

@@ -1,4 +1,4 @@
-#lang racket
+#lang rosette
 
 (provide framework@ framework^
          state state-mmaps state?
@@ -71,13 +71,26 @@
     ((perform-write bw) state (comp-addr op) dst))
 
   ; step one instruction ahead in the instruction stream
-  (define (step state instr-stream)
+  (define (step/stream state instr-stream)
     (let* ([dec (decode instr-stream)]
-           [taken (decode-taken dec)]
-           [ctx (step/read state dec taken)])
-      (step/exec (decoded-op dec) (decoded-bw dec) ctx)
-      (step/write state dec ctx)
+           [taken (decode-taken dec)])
+      (unless (= 0 taken)
+        (let ([ctx (step/read state dec (* 2 taken))])
+          (step/exec (decoded-op dec) (decoded-bw dec) ctx)
+          (step/write state dec ctx)))
       (stream-drop instr-stream taken)))
+
+  ; step one instruction, decoding from where the PC points in memory
+  (define (step state)
+    ; TODO if a future CPU has different maps, this will not work!
+    (let* ([pc ((perform-read 20) state (ref 0 (constant 0)))]
+           [iword ((perform-read 16) state (ref 1 (constant pc)))]
+           ; these may or may not actually be immediates, but we provide them
+           ; in case the instruction needs them
+           [imm0 ((perform-read 16) state (ref 1 (constant (bvadd pc (impl-bv 2)))))]
+           [imm1 ((perform-read 16) state (ref 1 (constant (bvadd pc (impl-bv 4)))))]
+           [istream (stream iword imm0 imm1)])
+      (step/stream state istream)))
 
   ; dispatch to the implementation-defined processor behavior once we have
   ; concrete values for operators
