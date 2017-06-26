@@ -67,7 +67,7 @@
             (unless sat (begin ;(printf "Program ~v doesn't satisfy iotab for ~a, ~a (was ~a, should be ~a), adding ~a to sample set\n" p a b (interpret p (take inputs arity)) val inputs)
                                (iotab-add-sample iotab sample)))))
         (if sat p (check))))
-    (parameterize ([current-bitwidth (+ width 1)])
+   (parameterize ([current-bitwidth (+ width 1)])
       (check))))
 
 (define (program->string p default)
@@ -88,7 +88,7 @@
 (define-syntax-rule (synthesize/flags width tab)
   (let ([iotab (quote tab)])
     (hash-set! iotabs iotab tab)
-    (iotab-generate-samples iotab #:width width)
+    (iotab-generate-samples iotab #:width width #:nsamples 64)
     (printf "(define (msp-~a sr op1 op2) ~a)\n" (quote->string iotab) (program->string (synthesize-and-check iotab #:width width) "(mspx-bv 0)"))
     (printf "(define (msp-sr-~a sr op1 op2 dst) \n" (quote->string iotab))
     (printf "  (concat\n")
@@ -104,19 +104,18 @@
 
 (synthesize/flags 8 mov.b)
 (synthesize/flags 8 add.b)
-;(synthesize/flags 8 addc.b)
+(synthesize/flags 8 addc.b)
 (synthesize/flags 8 sub.b)
-;(synthesize/flags 8 subc.b)
-;(synthesize/flags 8 cmp.b)
-;(synthesize/flags 8 dadd.b)
-;(synthesize/flags 8 bit.b)
-;(synthesize/flags 8 bic.b)
-;(synthesize/flags 8 bis.b)
-;(synthesize/flags 8 xor.b)
-;(synthesize/flags 8 and.b)
+(synthesize/flags 8 subc.b)
+(synthesize/flags 8 cmp.b)
+(synthesize/flags 8 dadd.b)
+(synthesize/flags 8 bit.b)
+(synthesize/flags 8 bic.b)
+(synthesize/flags 8 bis.b)
+(synthesize/flags 8 xor.b)
+(synthesize/flags 8 and.b)
 
 
 ; unanswered questions:
 ; - why can't it come up with a solution for add.b/v?
 ; - how can we get it synthesize 8bit and 16bit ops with the same code? 
-; - how can we output code that can be fed into the rest of the emulator?

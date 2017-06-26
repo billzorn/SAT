@@ -38,6 +38,7 @@
   (assert (and (= (first inputs) (bitwise-and (first inputs) #x1))
                (= (second inputs) (bitwise-and (second inputs) #xff))
                (= (third inputs) (bitwise-and (third inputs) #xff)))))
+               ;(= (fourth inputs) (bitwise-and (fourth inputs) #xff)))))
 
 (define (valid-inputs.w inputs)
   (assert (and (= (first inputs) (bitwise-and (first inputs) #x1))
@@ -79,4 +80,5 @@
     (with-output-to-file #:exists 'replace
       (iotab-samples.rkt iotab) 
       (thunk (write (vector-append samples (vector sample)))))))
+
 
