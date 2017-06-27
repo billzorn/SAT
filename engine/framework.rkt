@@ -96,8 +96,8 @@
   ; concrete values for operators
   (define (step/exec op bw ctx)
     (match ctx [(stepctx _ sr op1 op2 _)
-      (let* ([dst (dispatch op sr op1 op2)]
-             [sr  (dispatch-sr op sr op1 op2 dst)])
+      (let* ([dst (dispatch bw op sr op1 op2)]
+             [sr  (dispatch-sr bw op sr op1 op2 dst)])
       (set-stepctx-dst! ctx dst)
       (set-stepctx-sr! ctx sr))]))
 )

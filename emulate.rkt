@@ -91,7 +91,7 @@
          [params (rest words)]
          [quit #f])
     (case cmd
-      [("r" "reg" "regs") 
+      [("r" "reg" "regs" "register" "registers") 
        (if (null? params)
          (printregs)
          (for ([r (in-list params)])
@@ -99,7 +99,7 @@
              (if (and reg (< reg (vector-length (regs))))
                (printreg reg)
                (printf "unknown register ~a\n" r)))))]
-      [("m" "mem")
+      [("m" "mem" "memory")
        (if (null? params) (printf "usage: mem <addr> [<# bytes>]\n")
          (let ([addr (string->number (first params) 16)]
                [len (if (> (length params) 1) (string->number (second params)) 16)])
@@ -116,9 +116,21 @@
        (msp430-load (elf-file))
        (printf "loaded ~a\n" (elf-file))]
       [("q" "quit") (set! quit #t)]
+      [("h" "help")
+       (printf "Available commands:\n")
+       (printf "  reg [#]: display contents of register # (or all if no argument provided)\n")
+       (printf "  mem addr: display contents of memory at addr\n")
+       (printf "  load <elf-file>: load an elf file from the filesystem\n")
+       (printf "  step: execute one instruction\n")
+       (printf "  run: execute instructions until the instruction pointer does not change\n")
+       (printf "  help: display this message\n")]
       [else (printf "unknown command ~a\n" cmd)])
     (unless quit (repl))))
 
 (if (interactive-mode)
   (repl)
-  (begin (msp430-load (elf-file)) (run (machine-state)) (printregs)))
+  (if (equal? (elf-file) "")
+    (printf "Elf file needed when running in noninteractive mode (see --help)")
+    (begin (msp430-load (elf-file))
+           (run (machine-state)) 
+           (printregs))))

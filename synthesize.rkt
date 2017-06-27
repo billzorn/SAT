@@ -17,18 +17,21 @@
 ;    conditions (see above)
 
 (define-syntax-rule (synthesize-op width precond postcond arity)
-  (search #:metasketch `(bvop.b-simple ,postcond ,arity #:pre ,precond)
-          #:threads threads
-          #:timeout timeout
-          #:bitwidth (+ width 1)
-          #:exchange-samples #t
-          #:exchange-costs #t
-          #:use-structure #t
-          #:incremental #t
-          #:widening #f
-          #:synthesizer 'kodkod-incremental%
-          #:verifier 'kodkod%
-          #:verbose #f))
+  (let ([sketch (case width
+                  [(8) `bvop.b-simple]
+                  [(16) `bvop.w-simple])])
+    (search #:metasketch `(,sketch ,postcond ,arity #:pre ,precond)
+            #:threads threads
+            #:timeout timeout
+            #:bitwidth (+ width 1)
+            #:exchange-samples #t
+            #:exchange-costs #t
+            #:use-structure #t
+            #:incremental #t
+            #:widening #f
+            #:synthesizer 'kodkod-incremental%
+            #:verifier 'kodkod%
+            #:verbose #f)))
 
 (define (synthesize-and-check iotab
                      #:width [width 8]
@@ -48,16 +51,16 @@
       (let ([p (synthesize-op width pre post arity)])
         (if (equal? p #f) #f
           ; todo need a general way to iterate over possible inputs
-          (for* ([c (in-range 2)]
-                 [a (in-range (arithmetic-shift 1 width))]
-                 [b (in-range (arithmetic-shift 1 width))])
-            #:break (not sat)
-            (define sample (iotab-sample tab c a b))
-          ;(for ([kv (in-list (hash->list tab))])
+          ;(for* ([c (in-range 2)]
+          ;       [a (in-range (arithmetic-shift 1 width))]
+          ;       [b (in-range (arithmetic-shift 1 width))])
           ;  #:break (not sat)
-          ;  (define-values (key value) (values (first kv) (list-tail kv 1)))
-          ;  (define-values (c a b) (values (sr-carry (first key)) (second key) (third key)))
-          ;  (define sample (append key (iotab-entry-separate value)))
+          ;  (define sample (iotab-sample tab c a b))
+          (for ([kv (in-list (hash->list tab))])
+            #:break (not sat)
+            (define-values (key value) (values (first kv) (list-tail kv 1)))
+            (define-values (c a b) (values (sr-carry (first key)) (second key) (third key)))
+            (define sample (append key (iotab-entry-separate value)))
             (define result (list-ref sample 3))
             (define inputs (list c a b result))
             (define val (list-ref sample (+ arity index)))
@@ -90,30 +93,79 @@
     (printf "(define (msp-~a sr op1 op2) ~a)\n" (quote->string iotab) (program->string (synthesize-and-check iotab #:width width) "(mspx-bv 0)"))
     (printf "(define (msp-sr-~a sr op1 op2 dst) \n" (quote->string iotab))
     (printf "  (concat\n")
-    (printf "    ~a\n" (program->string (synthesize-and-check iotab #:width width #:arity 4 #:index 0) "(bv 0 1)"))
-    (printf "    ~a\n" (program->string (synthesize-and-check iotab #:width width #:arity 4 #:index 1) "(bv 0 1)"))
-    (printf "    ~a\n" (program->string (synthesize-and-check iotab #:width width #:arity 4 #:index 2) "(bv 0 1)"))
+    (printf "    ~a\n" (program->string (synthesize-and-check iotab #:width width #:arity 4 #:index 0) "(sr-carry sr)"))
+    (printf "    ~a\n" (program->string (synthesize-and-check iotab #:width width #:arity 4 #:index 1) "(sr-zero sr)"))
+    (printf "    ~a\n" (program->string (synthesize-and-check iotab #:width width #:arity 4 #:index 2) "(sr-negative sr)"))
     (printf "    (bv 0 5)\n")
-    (printf "    ~a))\n" (program->string (synthesize-and-check iotab #:width width #:arity 4 #:index 3) "(bv 0 1)"))))
+    (printf "    ~a))\n" (program->string (synthesize-and-check iotab #:width width #:arity 4 #:index 3) "(sr-overflow sr)"))))
 
+(define (widthshim tab)
+  (printf 
+"(define (msp-~a bw sr op1 op2)
+  (case bw
+    [(8) msp-~a.b sr op1 op2]
+    ;[(16) msp-~a.w sr op1 op2]
+    [else (mspx-bv 0)]))\n" tab tab tab)
+  (printf 
+"(define (msp-sr-~a bw sr op1 op2 dst)
+  (case bw
+    [(8) msp-sr-~a.b sr op1 op2 dst]
+    ;[(16) msp-sr-~a.w sr op1 op2 dst]
+    [else (mspx-bv 0)]))\n" tab tab tab))
+
+;(require "data/io/mov.w.rkt")
+;(synthesize/flags 16 mov.w)
 ;(require "data/io/add.w.rkt")
-
 ;(synthesize/flags 16 add.w)
+;(require "data/io/addc.w.rkt")
+;(synthesize/flags 16 addc.w)
+;(require "data/io/sub.w.rkt")
+;(synthesize/flags 16 sub.w)
+;(require "data/io/subc.w.rkt")
+;;(synthesize/flags 16 subc.w)
+;(require "data/io/cmp.w.rkt")
+;(synthesize/flags 16 cmp.w)
+;(require "data/io/bit.w.rkt")
+;(synthesize/flags 16 bit.w)
+;(require "data/io/bic.w.rkt")
+;(synthesize/flags 16 bic.w)
+;(require "data/io/bis.w.rkt")
+;(synthesize/flags 16 bis.w)
+(require "data/io/and.w.rkt")
+(synthesize/flags 16 and.w)
+(require "data/io/xor.w.rkt")
+(synthesize/flags 16 xor.w)
 
-(synthesize/flags 8 mov.b)
-(synthesize/flags 8 add.b)
-(synthesize/flags 8 addc.b)
-(synthesize/flags 8 sub.b)
-(synthesize/flags 8 subc.b)
-(synthesize/flags 8 cmp.b)
-(synthesize/flags 8 dadd.b)
-(synthesize/flags 8 bit.b)
-(synthesize/flags 8 bic.b)
-(synthesize/flags 8 bis.b)
-(synthesize/flags 8 xor.b)
-(synthesize/flags 8 and.b)
 
+;(printf "#lang rosette\n")
+;(printf "(require \"../lib/bv-operations.rkt\")\n")
+;(printf "(provide (all-defined-out))\n\n")
+;
+;(synthesize/flags 8 mov.b)
+;(synthesize/flags 8 add.b)
+;(synthesize/flags 8 addc.b)
+;(synthesize/flags 8 sub.b)
+;(synthesize/flags 8 subc.b)
+;(synthesize/flags 8 cmp.b)
+;(synthesize/flags 8 dadd.b)
+;(synthesize/flags 8 bit.b)
+;(synthesize/flags 8 bic.b)
+;(synthesize/flags 8 bis.b)
+;(synthesize/flags 8 xor.b)
+;(synthesize/flags 8 and.b)
+;
+;(widthshim "mov")
+;(widthshim "add")
+;(widthshim "addc")
+;(widthshim "sub")
+;(widthshim "subc")
+;(widthshim "cmp")
+;(widthshim "dadd")
+;(widthshim "bit")
+;(widthshim "bic")
+;(widthshim "bis")
+;(widthshim "xor")
+;(widthshim "and")
 
 ; unanswered questions:
-; - why can't it come up with a solution for add.b/v?
 ; - how can we get it synthesize 8bit and 16bit ops with the same code? 

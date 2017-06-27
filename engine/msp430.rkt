@@ -98,37 +98,37 @@
                   [(3) (constant (mspx-bv -1))]
                   [else (ref MAP/MEM (ref MAP/REG (constant rsrc)))])])]))
 
-  (define (dispatch op sr op1 op2) 
+  (define (dispatch bw op sr op1 op2) 
     ((cond
-      [((bveq-masked #xf000) op (mspx-bv #x4000)) msp-mov.b]
-      [((bveq-masked #xf000) op (mspx-bv #x5000)) msp-add.b]
-      ;[((bveq-masked #xf000) op (mspx-bv #x6000)) msp-addc]
-      ;[((bveq-masked #xf000) op (mspx-bv #x7000)) msp-subc]
-      [((bveq-masked #xf000) op (mspx-bv #x8000)) msp-sub.b])
-      ;[((bveq-masked #xf000) op (mspx-bv #x9000)) msp-cmp]
-      ;[((bveq-masked #xf000) op (mspx-bv #xa000)) msp-dadd]
-      ;[((bveq-masked #xf000) op (mspx-bv #xb000)) msp-bit]
-      ;[((bveq-masked #xf000) op (mspx-bv #xc000)) msp-bic]
-      ;[((bveq-masked #xf000) op (mspx-bv #xd000)) msp-bis]
-      ;[((bveq-masked #xf000) op (mspx-bv #xe000)) msp-xor]
-      ;[((bveq-masked #xf000) op (mspx-bv #xf000)) msp-and]) 
-     sr op1 op2))
+      [((bveq-masked #xf000) op (mspx-bv #x4000)) msp-mov]
+      [((bveq-masked #xf000) op (mspx-bv #x5000)) msp-add]
+      [((bveq-masked #xf000) op (mspx-bv #x6000)) msp-addc]
+      [((bveq-masked #xf000) op (mspx-bv #x7000)) msp-subc]
+      [((bveq-masked #xf000) op (mspx-bv #x8000)) msp-sub]
+      [((bveq-masked #xf000) op (mspx-bv #x9000)) msp-cmp]
+      [((bveq-masked #xf000) op (mspx-bv #xa000)) msp-dadd]
+      [((bveq-masked #xf000) op (mspx-bv #xb000)) msp-bit]
+      [((bveq-masked #xf000) op (mspx-bv #xc000)) msp-bic]
+      [((bveq-masked #xf000) op (mspx-bv #xd000)) msp-bis]
+      [((bveq-masked #xf000) op (mspx-bv #xe000)) msp-xor]
+      [((bveq-masked #xf000) op (mspx-bv #xf000)) msp-and])
+     bw sr op1 op2))
 
-  (define (dispatch-sr op sr op1 op2 dst) 
+  (define (dispatch-sr bw op sr op1 op2 dst) 
     ((cond
-      [((bveq-masked #xf000) op (mspx-bv #x4000)) msp-sr-mov.b]
-      [((bveq-masked #xf000) op (mspx-bv #x5000)) msp-sr-add.b]
-      ;[((bveq-masked #xf000) op (mspx-bv #x6000)) msp-sr-addc]
-      ;[((bveq-masked #xf000) op (mspx-bv #x7000)) msp-sr-subc]
-      [((bveq-masked #xf000) op (mspx-bv #x8000)) msp-sr-sub.b])
-      ;[((bveq-masked #xf000) op (mspx-bv #x9000)) msp-sr-cmp]
-      ;[((bveq-masked #xf000) op (mspx-bv #xa000)) msp-sr-dadd]
-      ;[((bveq-masked #xf000) op (mspx-bv #xb000)) msp-sr-bit]
-      ;[((bveq-masked #xf000) op (mspx-bv #xc000)) msp-sr-bic]
-      ;[((bveq-masked #xf000) op (mspx-bv #xd000)) msp-sr-bis]
-      ;[((bveq-masked #xf000) op (mspx-bv #xe000)) msp-sr-xor]
-      ;[((bveq-masked #xf000) op (mspx-bv #xf000)) msp-sr-and]) 
-     sr op1 op2 dst))
+      [((bveq-masked #xf000) op (mspx-bv #x4000)) msp-sr-mov]
+      [((bveq-masked #xf000) op (mspx-bv #x5000)) msp-sr-add]
+      [((bveq-masked #xf000) op (mspx-bv #x6000)) msp-sr-addc]
+      [((bveq-masked #xf000) op (mspx-bv #x7000)) msp-sr-subc]
+      [((bveq-masked #xf000) op (mspx-bv #x8000)) msp-sr-sub]
+      [((bveq-masked #xf000) op (mspx-bv #x9000)) msp-sr-cmp]
+      [((bveq-masked #xf000) op (mspx-bv #xa000)) msp-sr-dadd]
+      [((bveq-masked #xf000) op (mspx-bv #xb000)) msp-sr-bit]
+      [((bveq-masked #xf000) op (mspx-bv #xc000)) msp-sr-bic]
+      [((bveq-masked #xf000) op (mspx-bv #xd000)) msp-sr-bis]
+      [((bveq-masked #xf000) op (mspx-bv #xe000)) msp-sr-xor]
+      [((bveq-masked #xf000) op (mspx-bv #xf000)) msp-sr-and]) 
+     bw sr op1 op2 dst))
 
   ; SECTION: Easily implemented (specified) processor behavior
 
