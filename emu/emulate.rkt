@@ -3,12 +3,12 @@
 (require racket/cmdline
          racket/format
          readline/readline
-         "py-mspdebug/shim/mspdebug.rkt"
-         "engine/framework.rkt"
-         "engine/framework-addr.rkt"
-         "engine/msp430.rkt"
-         "lib/mem_ivmap.rkt"
-         "lib/bv.rkt")
+         "../py-mspdebug/shim/mspdebug.rkt"
+         "framework.rkt"
+         "framework-addr.rkt"
+         "cpu/msp430.rkt"
+         "../lib/mem_ivmap.rkt"
+         "../lib/bv.rkt")
 
 (define interactive-mode (make-parameter #f))
 (define emulated-cpu (make-parameter "msp430"))
@@ -130,7 +130,7 @@
 (if (interactive-mode)
   (repl)
   (if (equal? (elf-file) "")
-    (printf "Elf file needed when running in noninteractive mode (see --help)")
+    (printf "Elf file needed when running in noninteractive mode (see --help)\n")
     (begin (msp430-load (elf-file))
            (run (machine-state)) 
            (printregs))))

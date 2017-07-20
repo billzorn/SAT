@@ -8,7 +8,7 @@
          "../synapse/benchmarks/msp430/regops.rkt")
 
 (require "../msp430/process-measurements.rkt"
-         "../data/iotabs.rkt")
+         "data/iotabs.rkt")
 
 (provide (all-defined-out))
 

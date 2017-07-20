@@ -5,14 +5,14 @@
          step perform-write 
          MAP/REG MAP/MEM)
 
-(require "implementation-sig.rkt"
-         "framework.rkt" 
-         "framework-addr.rkt" 
+(require "../implementation-sig.rkt"
+         "../framework.rkt" 
+         "../framework-addr.rkt" 
          "msp430-synthesized.rkt" 
-         "../lib/bv.rkt" 
-         "../msp430/regs.rkt" 
-         (rename-in "../lib/mem_simple.rkt" [make-memory make-memory/vector] [memory-ref memory-ref/vector] [memory-set! memory-set!/vector] [memory-copy memory-copy/vector])
-         (rename-in "../lib/mem_ivmap.rkt"  [make-memory make-memory/intervalmap]))
+         "../../lib/bv.rkt" 
+         "../../msp430/regs.rkt" 
+         (rename-in "../../lib/mem_simple.rkt" [make-memory make-memory/vector] [memory-ref memory-ref/vector] [memory-set! memory-set!/vector] [memory-copy memory-copy/vector])
+         (rename-in "../../lib/mem_ivmap.rkt"  [make-memory make-memory/intervalmap]))
 
 (struct msp430-operand operand (as rsrc imm) #:transparent)
 

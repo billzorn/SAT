@@ -1,6 +1,6 @@
 #lang rosette
-(require "../lib/bv.rkt")
-(require "../lib/bv-operations.rkt")
+(require "../../lib/bv.rkt")
+(require "../../lib/bv-operations.rkt")
 (provide (all-defined-out))
 
 (define (msp-mov.b sr op1 op2) (pass op1))

@@ -1,11 +1,11 @@
 #lang s-exp rosette ; Requires a Racket 6.2 / Rosette 1.0 environment
 
-(require "synapse/opsyn/engine/search.rkt"
-         "synapse/opsyn/bv/lang.rkt")
+(require "../synapse/opsyn/engine/search.rkt"
+         "../synapse/opsyn/bv/lang.rkt")
 
 (require "data/iotabs.rkt"
-         "msp430/process-measurements.rkt"
-         "engine/framework-synth.rkt")
+         "../msp430/process-measurements.rkt"
+         "framework-synth.rkt")
 
 (define timeout 1800)
 (define threads 2)
@@ -104,13 +104,13 @@
 "(define (msp-~a bw sr op1 op2)
   (case bw
     [(8) msp-~a.b sr op1 op2]
-    ;[(16) msp-~a.w sr op1 op2]
+    [(16) msp-~a.w sr op1 op2]
     [else (mspx-bv 0)]))\n" tab tab tab)
   (printf 
 "(define (msp-sr-~a bw sr op1 op2 dst)
   (case bw
     [(8) msp-sr-~a.b sr op1 op2 dst]
-    ;[(16) msp-sr-~a.w sr op1 op2 dst]
+    [(16) msp-sr-~a.w sr op1 op2 dst]
     [else (mspx-bv 0)]))\n" tab tab tab))
 
 ;(require "data/io/mov.w.rkt")
@@ -131,10 +131,10 @@
 ;(synthesize/flags 16 bic.w)
 ;(require "data/io/bis.w.rkt")
 ;(synthesize/flags 16 bis.w)
-(require "data/io/and.w.rkt")
-(synthesize/flags 16 and.w)
-(require "data/io/xor.w.rkt")
-(synthesize/flags 16 xor.w)
+;(require "data/io/and.w.rkt")
+;(synthesize/flags 16 and.w)
+;(require "data/io/xor.w.rkt")
+;(synthesize/flags 16 xor.w)
 
 
 ;(printf "#lang rosette\n")

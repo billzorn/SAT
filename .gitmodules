@@ -2,5 +2,5 @@
 	path = py-mspdebug
 	url = https://github.com/billzorn/py-mspdebug
 [submodule "synapse"]
-	path = synapse
+	path = lib/synapse
 	url = https://github.com/billzorn/synapse
