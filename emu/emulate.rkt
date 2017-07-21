@@ -11,12 +11,15 @@
          "../lib/bv.rkt")
 
 (define interactive-mode (make-parameter #f))
+(define cosimulate (make-parameter #f))
 (define emulated-cpu (make-parameter "msp430"))
 (define elf-file (make-parameter "msp430"))
+
+(define emulator-state (make-parameter (void)))
 (define machine-state (make-parameter (void)))
 
-(define (regs) (msp430-state-registers (machine-state)))
-(define (mem) (msp430-state-memory (machine-state)))
+(define (regs) (msp430-state-registers (emulator-state)))
+(define (mem) (msp430-state-memory (emulator-state)))
 
 (define (msp430-load elf-file)
   (letrec ([f (λ (addr vals)
@@ -34,7 +37,7 @@
 (elf-file
   (command-line 
     #:once-each 
-    [("-c" "--cpu") cpu ("Which CPU to emulate." 
+    [("-m" "--cpu") cpu ("Which CPU to emulate." 
                          "Currently supported values: 'msp430' (default)")
                     (emulated-cpu cpu)]
     
@@ -43,11 +46,16 @@
                              "specified by <elf-file>, run it, and then print the resulting"
                              "registers.")
                             (interactive-mode #t)]
+    [("-c" "--cosim") ("Run the emulator in cosimulation mode." 
+                       "In cosimulation mode, the emulator will launch a debugger and run"
+                       "the program on the real hardware for comparison purposes.")
+                       (cosimulate #t)]
     #:ps ""
     #:args ([elf-file ""]) rest
     elf-file))
 
-(machine-state (msp430-state 16 #xfffe))
+(emulator-state (msp430-state 16 #xfffe))
+(when (cosimulate) (machine-state (mspdebug-init)))
 
 (define (run state)
   (let ([pc-init (vector-ref (regs) 0)])
@@ -98,9 +106,10 @@
            (let ([reg (string->number r)])
              (if (and reg (< reg (vector-length (regs))))
                (printreg reg)
-               (printf "unknown register ~a\n" r)))))]
-      [("m" "mem" "memory")
-       (if (null? params) (printf "usage: mem <addr> [<# bytes>]\n")
+               (printf "unknown register ~a\n" r)))))
+       (when (cosimulate) (msp-regs (machine-state)))]
+      [("m md mem memory")
+       (if (null? params) (printf "usage: md <addr> [<# bytes>]\n")
          (let ([addr (string->number (first params) 16)]
                [len (if (> (length params) 1) (string->number (second params)) 16)])
            (when (equal? addr #f) (printf "invalid address ~a\n" (first params)))
@@ -108,19 +117,22 @@
            (unless (equal? addr #f)
              (printmem addr #:length len))))]
       [("s" "step")
-       (step (machine-state))]
+       (step (emulator-state))
+       (when (cosimulate) (msp-step (machine-state)))]
       [("r" "run")
-       (run (machine-state))]
-      [("l" "load") 
+       (run (emulator-state))
+       (when (cosimulate) (msp-run (machine-state)))]
+      [("l" "load" "prog") 
        (elf-file (first params))
        (msp430-load (elf-file))
+       (when (cosimulate) msp-prog (elf-file))
        (printf "loaded ~a\n" (elf-file))]
-      [("q" "quit") (set! quit #t)]
+      [("q" "quit") (set! quit #t) (when (cosimulate) (mspdebug-close (machine-state)))]
       [("h" "help")
        (printf "Available commands:\n")
        (printf "  reg [#]: display contents of register # (or all if no argument provided)\n")
-       (printf "  mem addr: display contents of memory at addr\n")
-       (printf "  load <elf-file>: load an elf file from the filesystem\n")
+       (printf "  md addr: display contents of memory at addr\n")
+       (printf "  prog <elf-file>: load an elf file from the filesystem into device RAM\n")
        (printf "  step: execute one instruction\n")
        (printf "  run: execute instructions until the instruction pointer does not change\n")
        (printf "  help: display this message\n")]
@@ -132,5 +144,5 @@
   (if (equal? (elf-file) "")
     (printf "Elf file needed when running in noninteractive mode (see --help)\n")
     (begin (msp430-load (elf-file))
-           (run (machine-state)) 
+           (run (emulator-state)) 
            (printregs))))
