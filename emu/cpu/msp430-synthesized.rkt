@@ -19,7 +19,7 @@
     (bit8 dst)
     (bv 0 5)
     (bvand (samesign8 op1 op2) (diffsign8 dst op1))))
-(define (msp-addc.b sr op1 op2) (bvadd op1 (bvadd (sr-carry sr) op2)))
+(define (msp-addc.b sr op1 op2) (bvadd op1 (bvadd (sr-carry20 sr) op2)))
 (define (msp-sr-addc.b sr op1 op2 dst) 
   (concat
     (bit9 (bvadd op2 (bvadd (sr-carry sr) op1)))
@@ -30,12 +30,12 @@
 (define (msp-sub.b sr op1 op2) (bvsub op2 op1))
 (define (msp-sr-sub.b sr op1 op2 dst) 
   (concat
-    (bveq dst (bvsub op2 op1))
+    (bveq2 dst (bvsub op2 op1))
     (eq0 dst)
     (bit8 dst)
     (bv 0 5)
     (bvand (samesign8 op1 dst) (diffsign8 op2 dst))))
-(define (msp-subc.b sr op1 op2) (bvadd op2 (bvnot (bvsub op1 (sr-carry sr)))))
+(define (msp-subc.b sr op1 op2) (bvadd op2 (bvnot (bvsub op1 (sr-carry20 sr)))))
 (define (msp-sr-subc.b sr op1 op2 dst) 
   (concat
     (bit9 (bvsub (bvsub dst (sr-carry sr)) op2))
@@ -47,7 +47,7 @@
 (define (msp-sr-cmp.b sr op1 op2 dst) 
   (concat
     (eq0 (bit9 (bvsub dst op1)))
-    (bveq op1 op2)
+    (bveq2 op1 op2)
     (bit8 (bvsub op2 op1))
     (bv 0 5)
     (bvand (diffsign8 op1 dst) (samesign8 (bvsub dst op1) op1))))
@@ -115,10 +115,10 @@
     (bit16 dst)
     (bv 0 5)
     (bit16 (bvand (bvxor op1 dst) (bvxor op2 dst)))))
-(define (msp-addc.w sr op1 op2) (bvadd op1 (bvadd (sr-carry sr) op2)))
+(define (msp-addc.w sr op1 op2) (bvadd op1 (bvadd (sr-carry20 sr) op2)))
 (define (msp-sr-addc.w sr op1 op2 dst) 
   (concat
-    (bit17 (bvadd op1 (bvor (sr-carry sr) op2)))
+    (bit17 (bvadd op1 (bvor (sr-carry20 sr) op2)))
     (eq0 dst)
     (bit16 dst)
     (bv 0 5)
@@ -126,15 +126,15 @@
 (define (msp-sub.w sr op1 op2) (bvsub op2 op1))
 (define (msp-sr-sub.w sr op1 op2 dst) 
   (concat
-    (bveq dst (bvsub op2 op1))
+    (bveq2 dst (bvsub op2 op1))
     (eq0 dst)
     (bit16 dst)
     (bv 0 5)
     (bvand (samesign16 dst op1) (diffsign16 op2 dst))))
-(define (msp-subc.w sr op1 op2) (bvnot (bvsub (bvsub op1 (sr-carry sr)) op2)))
+(define (msp-subc.w sr op1 op2) (bvnot (bvsub (bvsub op1 (sr-carry20 sr)) op2)))
 (define (msp-sr-subc.w sr op1 op2 dst) 
   (concat
-    (bit17 (bvsub op1 (bvadd (sr-carry sr) op2)))
+    (bit17 (bvsub op1 (bvadd (sr-carry20 sr) op2)))
     (eq0 dst)
     (bit16 dst)
     (bv 0 5)
@@ -144,7 +144,7 @@
 (define (msp-sr-cmp.w sr op1 op2 dst) 
   (concat
     (eq0 (bit17 (bvsub dst op1)))
-    (bveq op1 dst)
+    (bveq2 op1 dst)
     (bit16 (bvsub dst op1))
     (bv 0 5)
     (bvand (diffsign16 op1 dst) (samesign16 (bvsub dst op1) op1))))

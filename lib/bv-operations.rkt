@@ -2,12 +2,14 @@
 (require "../lib/bv.rkt")
 (provide (all-defined-out))
 
+(define (sr-carry20 sr) (if (bit-set? sr 0) (bv 1 20) (bv 0 20)))
+
 (define (pass x) x)
-(define (eq0 x) (if (bveq x (bv 0 20)) (bv 1 1) (bv 0 1)))
+(define (eq0 x) (if (= (bitvector->natural x) 0) (bv 1 1) (bv 0 1)))
 (define (sr-carry sr)       (if (bit-set? sr 0) (bv 1 1) (bv 0 1)))
-(define (sr-zero sr)        (if (bit-set? sr 0) (bv 1 1) (bv 0 2)))
-(define (sr-negative sr)    (if (bit-set? sr 0) (bv 1 1) (bv 0 3)))
-(define (sr-overflow sr)    (if (bit-set? sr 0) (bv 1 1) (bv 0 9)))
+(define (sr-zero sr)        (if (bit-set? sr 1) (bv 1 1) (bv 0 1)))
+(define (sr-negative sr)    (if (bit-set? sr 2) (bv 1 1) (bv 0 1)))
+(define (sr-overflow sr)    (if (bit-set? sr 8) (bv 1 1) (bv 0 1)))
 (define (bit8 x) (if (bit-set? x 8) (bv 1 1) (bv 0 1)))
 (define (bit9 x) (if (bit-set? x 9) (bv 1 1) (bv 0 1)))
 (define (bit16 x) (if (bit-set? x 16) (bv 1 1) (bv 0 1)))
@@ -16,3 +18,4 @@
 (define (samesign8 x y) (if (not (xor (bit-set? x 8) (bit-set? y 8))) (bv 1 1) (bv 0 1)))
 (define (diffsign16 x y) (if (xor (bit-set? x 16) (bit-set? y 16)) (bv 1 1) (bv 0 1)))
 (define (samesign16 x y) (if (not (xor (bit-set? x 16) (bit-set? y 16))) (bv 1 1) (bv 0 1)))
+(define (bveq2 x y) (if (bveq x y) (bv 1 1) (bv 0 1)))
