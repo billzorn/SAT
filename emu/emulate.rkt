@@ -71,18 +71,18 @@
    (~a #:min-width 2 #:align 'right #:pad-string "0"
        (number->string (ref addr) 16)))
 
-(define (printmem addr #:length [len 16] #:group [group 'byte])
+(define (printmem addr #:length [len 16] #:ref [ref membyte->natural])
   (for ([b (in-range addr (+ addr len) 16)])
     (printf "~a: " (number->string b 16))
     (for ([a (in-range b (+ b 16))])
        (if (< a (+ addr len))
-         (printf "~a " (membyte->string a))
+         (printf "~a " (membyte->string a #:ref ref))
          (printf "   ")))
     (printf "|")
     (for ([a (in-range b (+ b 16))])
        (if (< a (+ addr len))
          (printf "~a" 
-            (let* ([i (membyte->natural a)]
+            (let* ([i (ref a)]
                    [c (integer->char i)])
               (if (and (< i 128) 
                        (or (char-alphabetic? c) (char-numeric? c) (char-punctuation? c)))
@@ -108,6 +108,10 @@
             (printreg regs (+ (* 4 r) g)))
        (printf "\n")))
 
+(define (sync)
+  (for ([r (in-range (vector-length (regs)))])
+    (msp-setreg (machine-state) r (bitvector->natural (vector-ref (regs) r)))))
+
 (define (run state)
   (let ([pc-init (vector-ref (regs) 0)])
     (step state)
@@ -122,8 +126,11 @@
          [quit #f])
     (case cmd
       [("r" "reg" "regs" "register" "registers") 
+       (printf "Emulator:\n")
        (printregs (regs))
        (when (cosimulate) 
+         (printf "-------------\n")
+         (printf "Hardware:\n")
          (printregs 
            (list->vector (map (λ (x) (bv x 20)) 
                               (msp-regs (machine-state))))))]
@@ -134,20 +141,26 @@
            (when (equal? addr #f) (printf "invalid address ~a\n" (first params)))
            (when (equal? len #f) (printf "invalid length ~a\n" (second params)))
            (unless (equal? addr #f)
+             (printf "Emulator:\n")
              (printmem addr #:length len))
            (when (cosimulate)
-             ; TODO
-             (printf "~a\n" (msp-md (machine-state) addr len)))))]
+             (printf "-------------\n")
+             (printf "Hardware:\n")
+             (let ([mem (msp-md (machine-state) addr len)])
+               (printmem addr #:length len #:ref (λ (a) (list-ref mem (- a addr))))))))]
       [("s" "step")
        (step (emulator-state))
        (when (cosimulate) (msp-step (machine-state)))]
+      [("sync") (sync)]
       [("r" "run")
        (run (emulator-state))
        (when (cosimulate) (msp-run (machine-state) 1))]
       [("l" "load" "prog") 
        (elf-file (first params))
        (msp430-load (elf-file))
-       (when (cosimulate) msp-prog (elf-file))
+       (when (cosimulate) 
+         (msp-prog (machine-state) (elf-file))
+         (sync))
        (printf "loaded ~a\n" (elf-file))]
       [("q" "quit") (set! quit #t) (when (cosimulate) (mspdebug-close (machine-state)))]
       [("h" "help")
