@@ -7,7 +7,7 @@
          "../synapse/opsyn/metasketches/cost.rkt"
          "../synapse/benchmarks/msp430/regops.rkt")
 
-(require "../msp430/process-measurements.rkt"
+(require "../meas/process-measurements.rkt"
          "data/iotabs.rkt")
 
 (provide (all-defined-out))
@@ -37,9 +37,9 @@
              #:cost-model cost-model))
 
 (define bvops.b
-  (list (bv 0) (bv 1) bit8 bit9
+  (list (bv 0) (bv 1) (bv #xf) bit8 bit9
         bvadd bvsub bvand bvor bvnot bvneg bvxor bveq
-        pass eq0 samesign8 diffsign8))
+        pass eq0 samesign8 diffsign8 shr4 msp_dcarry))
 
 (define bvops.w
   (list (bv 0) (bv 1) bit16 bit17
