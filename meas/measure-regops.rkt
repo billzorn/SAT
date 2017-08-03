@@ -4,7 +4,7 @@
          "../py-mspdebug/shim/mspdebug.rkt"
          "../lib/tools/bin-symbols.rkt"
          "../lib/tools/assemble.rkt"
-         "variants/fr5969.rkt")
+         "../mmcu/msp430/fr5969.rkt")
 
 (provide
  ; information for msp430fr5969 reference implementation
