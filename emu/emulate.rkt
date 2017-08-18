@@ -10,17 +10,22 @@
          "../lib/mem_ivmap.rkt"
          "../lib/bv.rkt")
 
+; Command line parameters
 (define interactive-mode (make-parameter #f))
 (define cosimulate (make-parameter #f))
 (define emulated-cpu (make-parameter "msp430"))
 (define elf-file (make-parameter "msp430"))
 
+; Program state
+;   emulator-state: the set of memory maps that make up the emulated CPU
+;   machine-state: the handle to the debug interface controlling the reference hardware
 (define emulator-state (make-parameter (void)))
 (define machine-state (make-parameter (void)))
 
 (define (regs) (msp430-state-registers (emulator-state)))
 (define (mem) (msp430-state-memory (emulator-state)))
 
+; Utility functions
 (define (msp430-load elf-file)
   (letrec ([f (λ (addr vals)
                (unless (<= (length vals) 1)
@@ -34,25 +39,25 @@
     (printf "Entry point ~a\n" (number->string (bitvector->integer entrypt) 16))
     (vector-set! (regs) 0 entrypt)))
 
-(elf-file
-  (command-line 
-    #:once-each 
-    [("-m" "--cpu") cpu ("Which CPU to emulate." 
-                         "Currently supported values: 'msp430' (default)")
-                    (emulated-cpu cpu)]
-    
-    [("-i" "--interactive") ("Run the emulator in interactive mode." 
-                             "In non-interactive mode, the emulator will load the program" 
-                             "specified by <elf-file>, run it, and then print the resulting"
-                             "registers.")
-                            (interactive-mode #t)]
-    [("-c" "--cosim") ("Run the emulator in cosimulation mode." 
-                       "In cosimulation mode, the emulator will launch a debugger and run"
-                       "the program on the real hardware for comparison purposes.")
-                       (cosimulate #t)]
-    #:ps ""
-    #:args ([elf-file ""]) rest
-    elf-file))
+; Command line parsing
+(command-line 
+  #:once-each 
+  [("-m" "--cpu") cpu ("Which CPU to emulate." 
+                       "Currently supported values: 'msp430' (default)")
+                  (emulated-cpu cpu)]
+  
+  [("-i" "--interactive") ("Run the emulator in interactive mode." 
+                           "In non-interactive mode, the emulator will load the program" 
+                           "specified by <elf-file>, run it, and then print the resulting"
+                           "registers.")
+                          (interactive-mode #t)]
+  [("-c" "--cosim") ("Run the emulator in cosimulation mode." 
+                     "In cosimulation mode, the emulator will launch a debugger and run"
+                     "the program on the real hardware for comparison purposes.")
+                     (cosimulate #t)]
+  #:ps ""
+  #:args ([elf-file-path ""]) rest
+  (elf-file elf-file-path)))
 
 (emulator-state (msp430-state 16 #xfffe))
 (when (cosimulate) (machine-state (mspdebug-init)))
