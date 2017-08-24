@@ -276,24 +276,20 @@
        #:maxinput maxinput
        #:fname path))))
 
-;; for datafmt try iotab-hash/sr, or iotab-fmt1/sr for datasets in the range of .b operations
-(define (process-regop.b inpath outpath sym datafmt)
+(define (process-regop.b inpath outpath sym)
   (let* ([fin (open-input-file inpath)]
          [raw-data (read fin)]
          [data (datafmt (io-diffs raw-data '(2 4 5) '(2 5)))]
          [fout (open-output-file outpath)])
     (close-input-port fin)
-    (fprintf fout
-             "#lang racket~n(provide ~a)~n(define ~a~n~v)~n"
-             sym   ; (provide sym)
-             sym   ; (define sym
-             data) ; data...)
+    (for (diff data)
+      (fprintf fout "(~a . ~a)\n" (car diff) (cdr diff)))
     (close-output-port fout)))
 
-(define (process-regop.b/all optable datafmt)
+(define (process-regop.b/all optable)
   (unless (directory-exists? data/io/) (make-directory data/io/))
   (for ([fields optable])
     (let ([inpath (third fields)]
           [outpath (fourth fields)]
           [sym (first fields)])
-      (process-regop.b inpath outpath sym datafmt))))
+      (process-regop.b inpath outpath sym))))
