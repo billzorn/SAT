@@ -279,10 +279,10 @@
 (define (process-regop.b inpath outpath sym)
   (let* ([fin (open-input-file inpath)]
          [raw-data (read fin)]
-         [data (datafmt (io-diffs raw-data '(2 4 5) '(2 5)))]
+         [data (io-diffs raw-data '(2 4 5) '(2 5))]
          [fout (open-output-file outpath)])
     (close-input-port fin)
-    (for (diff data)
+    (for ([diff data])
       (fprintf fout "(~a . ~a)\n" (car diff) (cdr diff)))
     (close-output-port fout)))
 
