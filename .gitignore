@@ -7,3 +7,6 @@
 
 # Compiled racket bytecode
 compiled
+
+# Generated data files
+data/

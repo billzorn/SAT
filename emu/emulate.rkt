@@ -6,7 +6,7 @@
          "../py-mspdebug/shim/mspdebug.rkt"
          "framework.rkt"
          "framework-addr.rkt"
-         "cpu/msp430/impl.rkt"
+         "cpu/msp430/implementation.rkt"
          "../lib/mem_ivmap.rkt"
          "../lib/bv.rkt")
 

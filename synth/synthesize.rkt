@@ -1,16 +1,20 @@
 #lang racket
 
-(require racket/cmdline)
+(require racket/cmdline
+         "../mmcu/msp430/hints.rkt")
 
-(define racket62 (make-parameter "TODO"))
-(define data-prefix (make-parameter "data/io/"))
+(define racket62 (make-parameter "~/racket-6.2/bin/racket"))
+(define data-prefix (make-parameter "data/"))
+(define out-file (make-parameter (current-output-port)))
 
 (command-line
   #:once-each
   [("-r" "--racket-6.2-path") racketpath "Path to a racket 6.2 `racket` executable."
                          (racket62 racketpath)]
-  [("-d" "--data-path") datapath "Path to the collected operation i/o data (e.g. data/io/"
+  [("-d" "--data-path") datapath "Path to the collected data (e.g. data/)"
                          (data-prefix datapath)]
+  [("-o" "--output-file") outfile "Path to the output file"
+                         (out-file (open-output-file outfile))]
   #:args rest
   (void))
 
@@ -26,7 +30,7 @@
   (get-output-string o))
 
 (define (data-file file)
-  (string-append (data-prefix) file ".rkt"))
+  (build-path (data-prefix) "io/" file ".rkt"))
 
 (define (begin-synthesis iotab 
                          #:width [width 8] 
@@ -82,32 +86,32 @@
 
 (define (end-operation-synthesis synth-handle)
   (define ops (end-synthesis synth-handle))
-  (printf "(define (msp-~a sr op1 op2) ~a)\n" (synthesis-iotab synth-handle) (first ops))
-  (printf "(define (msp-sr-~a sr op1 op2 dst) \n" (synthesis-iotab synth-handle))
-  (printf "  (concat\n")
-  (printf "    ~a\n" (second ops))
-  (printf "    ~a\n" (third ops))
-  (printf "    ~a\n" (fourth ops))
-  (printf "    (bv 0 5)\n")
-  (printf "    ~a))\n" (fifth ops)))
+  (fprintf (out-file) "(define (msp-~a sr op1 op2) ~a)\n" (synthesis-iotab synth-handle) (first ops))
+  (fprintf (out-file) "(define (msp-sr-~a sr op1 op2 dst) \n" (synthesis-iotab synth-handle))
+  (fprintf (out-file) "  (concat\n")
+  (fprintf (out-file) "    ~a\n" (second ops))
+  (fprintf (out-file) "    ~a\n" (third ops))
+  (fprintf (out-file) "    ~a\n" (fourth ops))
+  (fprintf (out-file) "    (bv 0 5)\n")
+  (fprintf (out-file) "    ~a))\n" (fifth ops)))
 
 (define (widthshim tab)
-  (printf 
+  (fprintf (out-file)
 "(define (msp-~a bw sr op1 op2)
   (case bw
     [(8) msp-~a.b sr op1 op2]
     [(16) msp-~a.w sr op1 op2]
     [else (mspx-bv 0)]))\n" tab tab tab)
-  (printf 
+  (fprintf (out-file)
 "(define (msp-sr-~a bw sr op1 op2 dst)
   (case bw
     [(8) msp-sr-~a.b sr op1 op2 dst]
     [(16) msp-sr-~a.w sr op1 op2 dst]
     [else (mspx-bv 0)]))\n" tab tab tab))
 
-(printf "#lang rosette\n")
-(printf "(require \"../lib/bv-operations.rkt\")\n")
-(printf "(provide (all-defined-out))\n\n")
+(fprintf (out-file) "#lang rosette\n")
+(fprintf (out-file) "(require \"../lib/bv-operations.rkt\")\n")
+(fprintf (out-file) "(provide (all-defined-out))\n\n")
 
 (define handles (list
   (begin-operation-synthesis "mov.b"  #:width 8 #:maxlengths '(1 1 1 1 1))
@@ -153,3 +157,4 @@
 (widthshim "xor")
 (widthshim "and")
 
+(close-output-port (out-file))

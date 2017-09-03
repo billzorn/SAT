@@ -1,7 +1,14 @@
 #lang racket
 
-(require "../lib/racket-utils.rkt" "measure-regops.rkt" "process-measurements.rkt")
+(require racket/cmdline
+         "../lib/racket-utils.rkt" 
+         "measure-regops.rkt" 
+         "process-measurements.rkt")
 
+(define data-prefix (make-parameter "data/"))
+(define nsamples (make-parameter 65536))
+(define nprocs (make-parameter 1))
+(define width (make-parameter 'a))
 
 (define-syntax-rule (defopc/regop.b id opc)
   (define (id rsrc rdst) (list (bitwise-ior (bitwise-and rdst #xf) #x40)
@@ -68,7 +75,7 @@
                      (list rsrc-v rdst-v (bitwise-ior c (arithmetic-shift z 1) (arithmetic-shift n 2)
                                                       (arithmetic-shift v 8))))]
         [reginit (build-list 64 (lambda (_) (random 256)))]
-        [outfile (if (void? fname) (void) (open-output-file fname))])
+        [outfile (if (void? fname) (void) (open-output-file fname #:exists 'truncate))])
     
     (measurement-kernel-compile)
     (let ([data (measure-regops/par
@@ -104,7 +111,7 @@
                      (list rsrc-v rdst-v (bitwise-ior c (arithmetic-shift z 1) (arithmetic-shift n 2)
                                                       (arithmetic-shift v 8)))))]
         [reginit (build-list 64 (lambda (_) (random 256)))]
-        [outfile (if (void? fname) (void) (open-output-file fname))])
+        [outfile (if (void? fname) (void) (open-output-file fname #:exists 'truncate))])
     
     (measurement-kernel-compile)
     (let ([data (measure-regops/par
@@ -120,11 +127,10 @@
             (write data outfile)
             (close-output-port outfile))))))
 
-(define here (get-here))
 (define-syntax-rule (defrelpath id)
-  (define id (build-path here (string-append "../" (symbol->string (quote id))))))
+  (define id (build-path (data-prefix) (symbol->string (quote id)))))
 (define-syntax-rule (deftextpath id)
-  (define id (build-path here (string-append "../" (symbol->string (quote id)) ".txt"))))
+  (define id (build-path (data-prefix) (symbol->string (quote id)) ".txt")))
 (defrelpath data/)
 (defrelpath data/regops/)
 (deftextpath data/regops/mov.b)
@@ -164,45 +170,45 @@
 (deftextpath data/regops/xorx.a)
 (deftextpath data/regops/andx.a)
 
-(define-syntax-rule (defrktpath id)
-  (define id (build-path here (string-append "../" (symbol->string (quote id)) ".rkt"))))
+(define-syntax-rule (defiopath id)
+  (define id (build-path (data-prefix) (symbol->string (quote id)) ".io")))
 (defrelpath data/io/)
-(defrktpath data/io/mov.b)
-(defrktpath data/io/add.b)
-(defrktpath data/io/addc.b)
-(defrktpath data/io/subc.b)
-(defrktpath data/io/sub.b)
-(defrktpath data/io/cmp.b)
-(defrktpath data/io/dadd.b)
-(defrktpath data/io/bit.b)
-(defrktpath data/io/bic.b)
-(defrktpath data/io/bis.b)
-(defrktpath data/io/xor.b)
-(defrktpath data/io/and.b)
-(defrktpath data/io/mov.w)
-(defrktpath data/io/add.w)
-(defrktpath data/io/addc.w)
-(defrktpath data/io/subc.w)
-(defrktpath data/io/sub.w)
-(defrktpath data/io/cmp.w)
-(defrktpath data/io/dadd.w)
-(defrktpath data/io/bit.w)
-(defrktpath data/io/bic.w)
-(defrktpath data/io/bis.w)
-(defrktpath data/io/xor.w)
-(defrktpath data/io/and.w)
-(defrktpath data/io/movx.a)
-(defrktpath data/io/addx.a)
-(defrktpath data/io/addcx.a)
-(defrktpath data/io/subcx.a)
-(defrktpath data/io/subx.a)
-(defrktpath data/io/cmpx.a)
-(defrktpath data/io/daddx.a)
-(defrktpath data/io/bitx.a)
-(defrktpath data/io/bicx.a)
-(defrktpath data/io/bisx.a)
-(defrktpath data/io/xorx.a)
-(defrktpath data/io/andx.a)
+(defiopath data/io/mov.b)
+(defiopath data/io/add.b)
+(defiopath data/io/addc.b)
+(defiopath data/io/subc.b)
+(defiopath data/io/sub.b)
+(defiopath data/io/cmp.b)
+(defiopath data/io/dadd.b)
+(defiopath data/io/bit.b)
+(defiopath data/io/bic.b)
+(defiopath data/io/bis.b)
+(defiopath data/io/xor.b)
+(defiopath data/io/and.b)
+(defiopath data/io/mov.w)
+(defiopath data/io/add.w)
+(defiopath data/io/addc.w)
+(defiopath data/io/subc.w)
+(defiopath data/io/sub.w)
+(defiopath data/io/cmp.w)
+(defiopath data/io/dadd.w)
+(defiopath data/io/bit.w)
+(defiopath data/io/bic.w)
+(defiopath data/io/bis.w)
+(defiopath data/io/xor.w)
+(defiopath data/io/and.w)
+(defiopath data/io/movx.a)
+(defiopath data/io/addx.a)
+(defiopath data/io/addcx.a)
+(defiopath data/io/subcx.a)
+(defiopath data/io/subx.a)
+(defiopath data/io/cmpx.a)
+(defiopath data/io/daddx.a)
+(defiopath data/io/bitx.a)
+(defiopath data/io/bicx.a)
+(defiopath data/io/bisx.a)
+(defiopath data/io/xorx.a)
+(defiopath data/io/andx.a)
 
 (define regops.b
   (list
@@ -293,3 +299,24 @@
           [outpath (fourth fields)]
           [sym (first fields)])
       (process-regop.b inpath outpath sym))))
+
+; Act on command-line input
+(define (sread s) (define i (open-input-string s)) (read i))
+
+(command-line
+  #:once-each
+  [("-d" "--data-path") datapath "Path where the collected data should be stored (e.g. data/)"
+                        (data-prefix datapath)]
+  [("-n" "--num-samples") n "Number of samples to take (only for non-thorough sampling)"
+                        (nsamples n)]
+  [("-j" "--num-procs") j "Number of processes to run for data collection"
+                        (nprocs j)]
+  [("-w" "--width") w "Operation width to collect data for. 'b or 8, 'w or 16, or 'a or 20."
+                        (width (sread w))]
+  #:args rest
+  (void))
+
+(case (width)
+  [('b 8)  (rmeasure-regop.b/all regops.b (nprocs))]
+  [('w 16) (rmeasure-regop/all regops.w (nsamples) 65536 (nprocs))]
+  [('a 20) (rmeasure-regop/all regops.a (nsamples) 2097152 (nprocs))])
