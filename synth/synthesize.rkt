@@ -3,22 +3,10 @@
 (require racket/cmdline
          "../mmcu/msp430/hints.rkt")
 
-(define racket62 (make-parameter "~/racket-6.2/bin/racket"))
+(define racket62 (make-parameter (build-path (find-system-path 'home-dir) "racket-6.2/bin/racket")))
 (define data-prefix (make-parameter "data/"))
 (define out-file (make-parameter (current-output-port)))
-
-(command-line
-  #:once-each
-  [("-r" "--racket-6.2-path") racketpath "Path to a racket 6.2 `racket` executable."
-                         (racket62 racketpath)]
-  [("-d" "--data-path") datapath "Path to the collected data (e.g. data/)"
-                         (data-prefix datapath)]
-  [("-o" "--output-file") outfile "Path to the output file"
-                         (out-file (open-output-file outfile))]
-  #:args rest
-  (void))
-
-(struct synthesis (iotab sp stdout stderr fallback) #:transparent)
+(define op-list (make-parameter '(mov.b mov.w add.b add.w addc.b addc.w sub.b sub.w cmp.b cmp.w dadd.b dadd.w bit.b bit.w bic.b bic.w bis.b bis.w xor.b xor.w and.b and.w)))
 
 (define (sread s)
   (define i (open-input-string s))
@@ -29,8 +17,23 @@
   (fprintf o fmt ...)
   (get-output-string o))
 
+(command-line
+  #:once-each
+  [("-r" "--racket-6.2-path") racketpath "Path to a racket 6.2 `racket` executable."
+                         (racket62 racketpath)]
+  [("-d" "--data-path") datapath "Path to the collected data (e.g. data/)"
+                         (data-prefix datapath)]
+  [("-o" "--output-file") outfile "Path to the output file"
+                         (out-file (open-output-file outfile))]
+  [("--ops") ops "List of operations to synthesize"
+                         (op-list (sread ops))]
+  #:args rest
+  (void))
+
+(struct synthesis (iotab sp stdout stderr fallback strategy) #:transparent)
+
 (define (data-file file)
-  (build-path (data-prefix) "io/" file ".rkt"))
+  (build-path (data-prefix) "io/" file))
 
 (define (begin-synthesis iotab 
                          #:width [width 8] 
@@ -43,17 +46,20 @@
   (let*-values
    ([(sp sp-stdout sp-stdin sp-stderr) 
      (subprocess #f #f #f 
-       (find-executable-path (racket62))
+       (racket62)
        "synapse/cpumodel/synthesize.rkt" 
-       "--width" (number->string width)
+       "--width" (sprintf "~a" width)
        "--arity" (sprintf "~a" arity)
        "--index" (sprintf "~a" index)
        "--threads" (number->string threads)
-       "--strategy" strategy
+       "--strategy" (sprintf "~a" strategy)
        "--maxlength" (sprintf "~a" maxlength)
        (data-file iotab))])
    (close-output-port sp-stdin)
-   (synthesis iotab sp sp-stdout sp-stderr fallback)))
+   (synthesis iotab sp sp-stdout sp-stderr fallback (first strategy))))
+
+(define (condition-result r)
+  (string-replace r "carry-in" "(sr-carry sr)"))
 
 (define (end-synthesis synth)
    (subprocess-wait (synthesis-sp synth))
@@ -68,7 +74,7 @@
        (let ([results (sread stdout-data)])
          ;(printf "[~a]\n" results)
          (map (λ (result fallback)
-                 (if (equal? result "#f") fallback result))
+                 (if (equal? result "#f") fallback (condition-result result)))
               results (synthesis-fallback synth))))))
 
 (define (begin-operation-synthesis iotab #:width [width 8] #:maxlengths [maxlengths (list 4 4 4 4 4)] #:strategy [strategy "full"])
@@ -78,7 +84,7 @@
                    #:arity '(3 4 4 4 4)
                    #:index '(0 0 1 2 3)
                    #:maxlength maxlengths
-                   #:fallback '("(mspx-bv 0)"
+                   #:fallback '("(bv 0 20)"
                                 "(sr-carry sr)"
                                 "(sr-zero sr)"
                                 "(sr-negative sr)"
@@ -86,14 +92,56 @@
 
 (define (end-operation-synthesis synth-handle)
   (define ops (end-synthesis synth-handle))
-  (fprintf (out-file) "(define (msp-~a sr op1 op2) ~a)\n" (synthesis-iotab synth-handle) (first ops))
-  (fprintf (out-file) "(define (msp-sr-~a sr op1 op2 dst) \n" (synthesis-iotab synth-handle))
-  (fprintf (out-file) "  (concat\n")
-  (fprintf (out-file) "    ~a\n" (second ops))
-  (fprintf (out-file) "    ~a\n" (third ops))
-  (fprintf (out-file) "    ~a\n" (fourth ops))
-  (fprintf (out-file) "    (bv 0 5)\n")
-  (fprintf (out-file) "    ~a))\n" (fifth ops)))
+  (define iotab (synthesis-iotab synth-handle))
+  (define strategy (synthesis-strategy synth-handle))
+  (case strategy
+    [(full)
+       (fprintf (out-file) #<<END
+(define (msp-~a sr op1 op2) ~a)
+(define (msp-sr-~a sr op1 op2 dst)
+  (concat
+    ~a
+    ~a
+    ~a
+    (bv 0 5)
+    ~a))
+
+END
+          iotab (first ops)
+          iotab (second ops) (third ops) (fourth ops) (fifth ops))]
+    [(n4-up)
+       (fprintf (out-file) #<<END
+(define (msp-~a sr op1 op2) (n4-up.~a (lambda (sr op1 op2) ~a) (lambda (sr op1 op2 dst) ~a)))
+(define (msp-sr-~a sr op1 op2 dst)
+  (concat
+    (n4-up.~a/c (lambda (sr op1 op2) ~a) (lambda (sr op1 op2 dst) ~a))
+    ~a
+    ~a
+    (bv 0 5)
+    ~a))
+
+END
+          iotab (second (string-split iotab "."))
+          (first ops) (second ops)
+          iotab (second (string-split iotab "."))
+          (first ops) (second ops) (third ops) (fourth ops) (fifth ops))]
+    [else (error (sprintf "Invalid synthesis strategy ~a" strategy))]))
+
+(define (synthesize-operation op)
+  (end-operation-synthesis 
+    (begin-operation-synthesis op #:width (bitwidth-hint op) #:maxlengths (maxlength-hint op) #:strategy (strategy-hint op))))
+
+(define (quote->string q)
+  (let ([o (open-output-string)])
+    (display q o)
+    (get-output-string o)))
+
+(define (synthesize-operations ops)
+  (let ([handles 
+         (for/list ([op (in-list (map quote->string ops))]) 
+           (begin-operation-synthesis op #:width (bitwidth-hint op) #:maxlengths (maxlength-hint op) #:strategy (strategy-hint op)))])
+    (for ([handle (in-list handles)]) 
+      (end-operation-synthesis handle))))
 
 (define (widthshim tab)
   (fprintf (out-file)
@@ -110,51 +158,10 @@
     [else (mspx-bv 0)]))\n" tab tab tab))
 
 (fprintf (out-file) "#lang rosette\n")
-(fprintf (out-file) "(require \"../lib/bv-operations.rkt\")\n")
+(fprintf (out-file) "(require \"../../lib/bv-operations.rkt\")\n")
 (fprintf (out-file) "(provide (all-defined-out))\n\n")
 
-(define handles (list
-  (begin-operation-synthesis "mov.b"  #:width 8 #:maxlengths '(1 1 1 1 1))
-  (begin-operation-synthesis "add.b"  #:width 8 #:maxlengths '(1 4 4 4 4))
-  ;(begin-operation-synthesis (data-file "addc.b.rkt") #:width 8 #:maxlengths '(4 4 4 4 4))
-  ;(begin-operation-synthesis (data-file "sub.b.rkt")  #:width 8 #:maxlengths '(1 4 4 4 4))
-  ;(begin-operation-synthesis (data-file "subc.b.rkt") #:width 8 #:maxlengths '(4 4 4 4 4))
-  ;(begin-operation-synthesis (data-file "cmp.b.rkt")  #:width 8 #:maxlengths '(1 4 4 4 4))
-  ;(begin-operation-synthesis (data-file "bit.b.rkt")  #:width 8 #:maxlengths '(4 4 4 4 4))
-  ;(begin-operation-synthesis (data-file "bic.b.rkt")  #:width 8 #:maxlengths '(4 4 4 4 4))
-  ;(begin-operation-synthesis (data-file "bis.b.rkt")  #:width 8 #:maxlengths '(4 4 4 4 4))
-  ;(begin-operation-synthesis (data-file "xor.b.rkt")  #:width 8 #:maxlengths '(1 4 4 4 4))
-  ;(begin-operation-synthesis (data-file "and.b.rkt")  #:width 8 #:maxlengths '(1 4 4 4 4))
-  ;(begin-operation-synthesis (data-file "dadd.b.rkt") #:width 8 #:maxlengths '(8 8 8 8 8) #:strategy 'n4-up))
-  ;
-  ;(begin-operation-synthesis (data-file "mov.w.rkt")  #:width 16 #:maxlengths '(1 1 1 1 1))
-  ;(begin-operation-synthesis (data-file "add.w.rkt")  #:width 16 #:maxlengths '(1 4 4 4 4))
-  ;(begin-operation-synthesis (data-file "addc.w.rkt") #:width 16 #:maxlengths '(4 4 4 4 4))
-  ;(begin-operation-synthesis (data-file "sub.w.rkt")  #:width 16 #:maxlengths '(1 4 4 4 4))
-  ;(begin-operation-synthesis (data-file "subc.w.rkt") #:width 16 #:maxlengths '(4 4 4 4 4))
-  ;(begin-operation-synthesis (data-file "cmp.w.rkt")  #:width 16 #:maxlengths '(1 4 4 4 4))
-  ;(begin-operation-synthesis (data-file "bit.w.rkt")  #:width 16 #:maxlengths '(4 4 4 4 4))
-  ;(begin-operation-synthesis (data-file "bic.w.rkt")  #:width 16 #:maxlengths '(4 4 4 4 4))
-  ;(begin-operation-synthesis (data-file "bis.w.rkt")  #:width 16 #:maxlengths '(4 4 4 4 4))
-  ;(begin-operation-synthesis (data-file "xor.w.rkt")  #:width 16 #:maxlengths '(1 4 4 4 4))
-  ;(begin-operation-synthesis (data-file "and.w.rkt")  #:width 16 #:maxlengths '(1 4 4 4 4))
-  ;(begin-operation-synthesis (data-file "dadd.w.rkt") #:width 16 #:maxlengths '(8 8 8 8 8) #:strategy `n4-up)
-  ))
-
-(for ([handle handles])
-  (end-operation-synthesis handle))
-
-(widthshim "mov")
-(widthshim "add")
-(widthshim "addc")
-(widthshim "sub")
-(widthshim "subc")
-(widthshim "cmp")
-(widthshim "dadd")
-(widthshim "bit")
-(widthshim "bic")
-(widthshim "bis")
-(widthshim "xor")
-(widthshim "and")
+(for ([op (in-list (op-list))])
+  (synthesize-operations (list op)))
 
 (close-output-port (out-file))
