@@ -19,3 +19,19 @@
 (define (diffsign16 x y) (if (xor (bit-set? x 16) (bit-set? y 16)) (bv 1 1) (bv 0 1)))
 (define (samesign16 x y) (if (not (xor (bit-set? x 16) (bit-set? y 16))) (bv 1 1) (bv 0 1)))
 (define (bveq2 x y) (if (bveq x y) (bv 1 1) (bv 0 1)))
+
+(define (n4-up width)
+  (λ (f)
+    (for/fold ([val (bv 0 20)]) 
+              ([i (in-range 0 width 4)])
+      (bvor val (bvshl (f) (bv i 20))))))
+
+(define n4-up.b (n4-up 8))
+(define n4-up.w (n4-up 16))
+(define n4-up.a (n4-up 20))
+
+(define (n4-up/c width)
+  (λ (f)
+    (for/fold ([val (bv 0 20)]) 
+              ([i (in-range 0 8 4)])
+      (bvor val (bvshl (f) (bv i 20))))))

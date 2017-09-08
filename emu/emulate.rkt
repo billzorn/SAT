@@ -6,7 +6,7 @@
          "../py-mspdebug/shim/mspdebug.rkt"
          "framework.rkt"
          "framework-addr.rkt"
-         "cpu/msp430/implementation.rkt"
+         "msp430/implementation.rkt"
          "../lib/mem_ivmap.rkt"
          "../lib/bv.rkt")
 
@@ -57,7 +57,7 @@
                      (cosimulate #t)]
   #:ps ""
   #:args ([elf-file-path ""]) rest
-  (elf-file elf-file-path)))
+  (elf-file elf-file-path))
 
 (emulator-state (msp430-state 16 #xfffe))
 (when (cosimulate) (machine-state (mspdebug-init)))

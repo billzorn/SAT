@@ -35,3 +35,6 @@
         (set! sublist-head t)
         h))))
       
+
+; read/print directly to strings more easily
+(define (sread s) (define i (open-input-string s)) (read i))
