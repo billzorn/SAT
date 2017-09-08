@@ -7,6 +7,8 @@ exec racket -tm $0 -- $*
 
 (require "emulate.rkt")
 
+(provide main place-main)
+
 (define (main . args)
   ; Command line parameters
   (define interactive-mode #f)
@@ -35,4 +37,4 @@ exec racket -tm $0 -- $*
 
 (define-namespace-anchor emu)
 (define (place-main ch)
-  (eval (place-channel-get ch) (namespace-anchor->namespace meas)))
+  (eval (place-channel-get ch) (namespace-anchor->namespace emu)))

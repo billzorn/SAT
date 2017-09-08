@@ -1,6 +1,6 @@
 #!/bin/sh
 #|
-exec racket -tm $0 -- $*
+exec racket -tm $0 -- "$@"
 |#
 
 #lang racket
@@ -8,6 +8,8 @@ exec racket -tm $0 -- $*
 (require racket/cmdline
          "../lib/racket-utils.rkt"
          "synthesize.rkt")
+
+(provide main place-main)
 
 (define (main . args)
   (define racket62 (build-path (find-system-path 'home-dir) "racket-6.2/bin/racket"))
@@ -24,6 +26,7 @@ exec racket -tm $0 -- $*
     [("-o" "--output-file") outfile "Path to the output file"
                            (set! out-file (open-output-file outfile))]
     [("--ops") ops "List of operations to synthesize"
+                            (printf "~a\n" ops)
                            (set! op-list (sread ops))]
     #:args rest
     (void))
@@ -35,4 +38,4 @@ exec racket -tm $0 -- $*
 
 (define-namespace-anchor synth)
 (define (place-main ch)
-  (eval (place-channel-get ch) (namespace-anchor->namespace meas)))
+  (eval (place-channel-get ch) (namespace-anchor->namespace synth)))
