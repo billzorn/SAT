@@ -1,4 +1,8 @@
-#!/usr/bin/env racket
+#!/bin/sh
+#|
+exec racket -tm $0 -- $*
+|#
+
 #lang racket
 
 (provide main place-main)
@@ -12,7 +16,8 @@
 (define nprocs 1)
 (define width 'a)
 
-(define (main)
+(define (main . args)
+  (printf "running main with args ~a\n" (current-command-line-arguments))
   (command-line
     #:once-each
     [("-d" "--data-path") datapath "Path where the collected data should be stored (e.g. data/)"
@@ -31,5 +36,6 @@
        #:nprocs nprocs 
        #:width width))
 
+(define-namespace-anchor meas)
 (define (place-main ch)
-  (eval (place-channel-get ch)))
+  (eval (place-channel-get ch) (namespace-anchor->namespace meas)))

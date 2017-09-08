@@ -1,4 +1,8 @@
-#!/usr/bin/env racket
+#!/bin/sh
+#|
+exec racket -tm $0 -- $*
+|#
+
 #lang racket
 
 (provide main)
@@ -12,11 +16,29 @@
 
 (define (run-measure)
   (define p (dynamic-place "meas/run.rkt" 'place-main))
-  (place-channel-put p '(run #:data-prefix ,(data-path)))
+  (place-channel-put p `(run #:data-prefix ,(data-path) 
+                             #:nprocs 1 
+                             #:width 16 
+                             #:nsamples 64))
   (place-wait p))
 
-(define main (λ args
-  (printf "running main with args ~a\n" (current-command-line-arguments))
+(define (run-synthesis)
+  (when (file-exists? (output-file)) 
+    (rename-file-or-directory 
+      (output-file)
+      (string-append (output-file) ".old")))
+
+  (define p (dynamic-place "synth/run.rkt" 'place-main))
+  (place-channel-put p `(run #:data-prefix ,(data-path)
+                             #:output-file ,(output-file)))
+  (place-wait p))
+
+(define (run-emulator)
+  (define p (dynamic-place "emu/run.rkt" 'place-main))
+  (place-channel-put p `(run #:interactive-mode #t))
+  (place-wait p))
+
+(define (main . args)
   (command-line
     #:once-each
     [("-m" "--measure") "If present, perform measurement using hardware connected over a debug interface."
@@ -31,25 +53,5 @@
   		   (output-file o)])
   
   (when (measure?) (run-measure))
-  
-  (when (synthesize?)
-    (when (file-exists? (output-file)) 
-      (rename-file-or-directory 
-        (output-file)
-        (string-append (output-file) ".old")))
-    (let-values ([(sp o i e)
-      (subprocess (current-output-port) (current-input-port) (current-error-port) 
-        (find-executable-path "racket")
-        "synth/synthesize.rkt"
-        "-d" (data-path)
-        "-o" (output-file))])
-      (subprocess-wait sp)))
-  
-  
-  (when (emulate?)
-    (let-values ([(sp o i e)
-      (subprocess (current-output-port) (current-input-port) (current-error-port) 
-        (find-executable-path "racket")
-        "emu/emulate.rkt"
-        "-i")])
-      (subprocess-wait sp)))))
+  (when (synthesize?) (run-synthesis))
+  (when (emulate?) (run-emulator)))
