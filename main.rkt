@@ -29,8 +29,10 @@ exec racket -tm $0 -- $*
       (string-append (output-file) ".old")))
 
   (define p (dynamic-place "synth/run.rkt" 'place-main))
-  (place-channel-put p `(run #:data-prefix ,(data-path)
-                             #:output-file ,(output-file)))
+  (place-channel-put p `(run #:racket62 racket62-assumed
+                             #:data-prefix ,(data-path)
+                             #:out-file (open-output-file ,(output-file))
+                             #:op-list all-ops))
   (place-wait p))
 
 (define (run-emulator)
