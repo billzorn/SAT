@@ -1,3 +1,4 @@
+#!/usr/bin/env racket
 #lang racket
 
 (require racket/cmdline
@@ -12,13 +13,13 @@
 (command-line
   #:once-each
   [("-d" "--data-path") datapath "Path where the collected data should be stored (e.g. data/)"
-                        (data-prefix datapath)]
+                        (set! data-prefix datapath)]
   [("-n" "--num-samples") n "Number of samples to take (only for non-thorough sampling)"
-                        (nsamples n)]
+                        (set! nsamples (sread n))]
   [("-j" "--num-procs") j "Number of processes to run for data collection"
-                        (nprocs j)]
+                        (set! nprocs (sread j))]
   [("-w" "--width") w "Operation width to collect data for. 'b or 8, 'w or 16, or 'a or 20."
-                        (width (sread w))]
+                        (set! width (sread w))]
   #:args rest
   (void))
 

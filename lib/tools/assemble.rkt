@@ -26,6 +26,7 @@
   (close-input-port sp-stderr)
   (define status (subprocess-status sp))
   (unless (= status 0)
+    (fprintf (current-error-port) stderr-data)
     (raise-arguments-error 'mspgcc-compile-with-arguments
                            "compilation failed"
                            "mspgcc return status" status

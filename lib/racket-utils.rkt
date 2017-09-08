@@ -38,3 +38,7 @@
 
 ; read/print directly to strings more easily
 (define (sread s) (define i (open-input-string s)) (read i))
+(define (sprintf fmt ...)
+  (define o (open-output-string))
+  (fprintf o fmt ...)
+  (get-output-string o))

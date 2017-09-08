@@ -1,7 +1,8 @@
 #lang rosette ; Requires a Racket 6.8 / Rosette 2.2 environment
 
-(require racket/cmdline
-         racket/format
+(provide run)
+
+(require racket/format
          readline/readline
          "../py-mspdebug/shim/mspdebug.rkt"
          "framework.rkt"
@@ -10,11 +11,7 @@
          "../lib/mem_ivmap.rkt"
          "../lib/bv.rkt")
 
-; Command line parameters
-(define interactive-mode (make-parameter #f))
 (define cosimulate (make-parameter #f))
-(define emulated-cpu (make-parameter "msp430"))
-(define elf-file (make-parameter "msp430"))
 
 ; Program state
 ;   emulator-state: the set of memory maps that make up the emulated CPU
@@ -38,29 +35,6 @@
   (let ([entrypt (memory-ref (mem) (arithmetic-shift #xfffe -1))])
     (printf "Entry point ~a\n" (number->string (bitvector->integer entrypt) 16))
     (vector-set! (regs) 0 entrypt)))
-
-; Command line parsing
-(command-line 
-  #:once-each 
-  [("-m" "--cpu") cpu ("Which CPU to emulate." 
-                       "Currently supported values: 'msp430' (default)")
-                  (emulated-cpu cpu)]
-  
-  [("-i" "--interactive") ("Run the emulator in interactive mode." 
-                           "In non-interactive mode, the emulator will load the program" 
-                           "specified by <elf-file>, run it, and then print the resulting"
-                           "registers.")
-                          (interactive-mode #t)]
-  [("-c" "--cosim") ("Run the emulator in cosimulation mode." 
-                     "In cosimulation mode, the emulator will launch a debugger and run"
-                     "the program on the real hardware for comparison purposes.")
-                     (cosimulate #t)]
-  #:ps ""
-  #:args ([elf-file-path ""]) rest
-  (elf-file elf-file-path))
-
-(emulator-state (msp430-state 16 #xfffe))
-(when (cosimulate) (machine-state (mspdebug-init)))
 
 (define (trunc8 x)
   (bvand x (mspx-bv #x000ff)))
@@ -117,13 +91,13 @@
   (for ([r (in-range (vector-length (regs)))])
     (msp-setreg (machine-state) r (bitvector->natural (vector-ref (regs) r)))))
 
-(define (run state)
+(define (run-to-halt state)
   (let ([pc-init (vector-ref (regs) 0)])
     (step state)
-    (if (bveq (vector-ref (regs) 0) pc-init) (printregs (regs)) (run state))))
+    (if (bveq (vector-ref (regs) 0) pc-init) (printregs (regs)) (run-to-halt state))))
 
 (define (repl)
-  (let* ([line (readline (string-append (emulated-cpu) " > "))]
+  (let* ([line (readline "msp430 > ")]
          [condition (λ (s) (if (equal? s eof) "q" (if (equal? (string-trim s) "") "_" s)))]
          [words (string-split (condition line))]
          [cmd (first words)]
@@ -158,15 +132,15 @@
        (when (cosimulate) (msp-step (machine-state)))]
       [("sync") (sync)]
       [("r" "run")
-       (run (emulator-state))
+       (run-to-halt (emulator-state))
        (when (cosimulate) (msp-run (machine-state) 1))]
       [("l" "load" "prog") 
-       (elf-file (first params))
-       (msp430-load (elf-file))
+       (define elf-file (first params))
+       (msp430-load elf-file)
        (when (cosimulate) 
-         (msp-prog (machine-state) (elf-file))
+         (msp-prog (machine-state) elf-file)
          (sync))
-       (printf "loaded ~a\n" (elf-file))]
+       (printf "loaded ~a\n" elf-file)]
       [("q" "quit") (set! quit #t) (when (cosimulate) (mspdebug-close (machine-state)))]
       [("h" "help")
        (printf "Available commands:\n")
@@ -179,10 +153,18 @@
       [else (printf "unknown command ~a\n" cmd)])
     (unless quit (repl))))
 
-(if (interactive-mode)
-  (repl)
-  (if (equal? (elf-file) "")
-    (printf "Elf file needed when running in noninteractive mode (see --help)\n")
-    (begin (msp430-load (elf-file))
-           (run (emulator-state)) 
-           (printregs (regs)))))
+(define (run #:elf-file [elf-file ""]
+             #:cosimulate [cosim #f]
+             #:interactive-mode [interactive #f])
+
+  (parameterize ([cosimulate cosim])
+    (emulator-state (msp430-state 16 #xfffe))
+    (when (cosimulate) (machine-state (mspdebug-init)))
+    
+    (if interactive
+      (repl)
+      (if (equal? elf-file "")
+        (printf "Elf file needed when running in noninteractive mode (see --help)\n")
+        (begin (msp430-load elf-file)
+               (run (emulator-state)) 
+               (printregs (regs)))))))

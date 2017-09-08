@@ -14,7 +14,7 @@
 (define (strategy-hint opname)
   (case opname
     [("dadd.b" "dadd.w" "dadd.a") '(n4-up n4-up full full full)]
-    [else "'full"]))
+    [else 'full]))
 
 (define (maxlength-hint opname)
   (case opname

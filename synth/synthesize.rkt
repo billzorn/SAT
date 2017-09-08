@@ -1,39 +1,17 @@
 #lang racket
+(require "../mmcu/msp430/hints.rkt"
+         "../lib/racket-utils.rkt")
 
-(require racket/cmdline
-         "../mmcu/msp430/hints.rkt")
-
-(define racket62 (make-parameter (build-path (find-system-path 'home-dir) "racket-6.2/bin/racket")))
-(define data-prefix (make-parameter "data/"))
-(define out-file (make-parameter (current-output-port)))
-(define op-list (make-parameter '(mov.b mov.w add.b add.w addc.b addc.w sub.b sub.w cmp.b cmp.w dadd.b dadd.w bit.b bit.w bic.b bic.w bis.b bis.w xor.b xor.w and.b and.w)))
-
-(define (sread s)
-  (define i (open-input-string s))
-  (read i))
-
-(define (sprintf fmt ...)
-  (define o (open-output-string))
-  (fprintf o fmt ...)
-  (get-output-string o))
-
-(command-line
-  #:once-each
-  [("-r" "--racket-6.2-path") racketpath "Path to a racket 6.2 `racket` executable."
-                         (racket62 racketpath)]
-  [("-d" "--data-path") datapath "Path to the collected data (e.g. data/)"
-                         (data-prefix datapath)]
-  [("-o" "--output-file") outfile "Path to the output file"
-                         (out-file (open-output-file outfile))]
-  [("--ops") ops "List of operations to synthesize"
-                         (op-list (sread ops))]
-  #:args rest
-  (void))
+(provide run)
 
 (struct synthesis (iotab sp stdout stderr fallback strategy) #:transparent)
 
-(define (data-file file)
-  (build-path (data-prefix) "io/" file))
+(define racket62 (make-parameter (void)))
+(define data-prefix (make-parameter (void)))
+(define out-file (make-parameter (void)))
+(define op-list (make-parameter (void)))
+
+(define (data-file file) (build-path (data-prefix) "io/" file))
 
 (define (begin-synthesis iotab 
                          #:width [width 8] 
@@ -41,7 +19,7 @@
                          #:index [index 0] 
                          #:maxlength [maxlength 4]
                          #:threads [threads 4] 
-                         #:strategy [strategy "full"] 
+                         #:strategy [strategy 'full] 
                          #:fallback [fallback "#f"])
   (let*-values
    ([(sp sp-stdout sp-stdin sp-stderr) 
@@ -56,7 +34,7 @@
        "--maxlength" (sprintf "~a" maxlength)
        (data-file iotab))])
    (close-output-port sp-stdin)
-   (synthesis iotab sp sp-stdout sp-stderr fallback (first strategy))))
+   (synthesis iotab sp sp-stdout sp-stderr fallback (if (list? strategy) (first strategy) strategy))))
 
 (define (condition-result r)
   (string-replace r "carry-in" "(sr-carry sr)"))
@@ -125,7 +103,7 @@ END
           (first ops) (second ops)
           iotab (second (string-split iotab "."))
           (first ops) (second ops) (third ops) (fourth ops) (fifth ops))]
-    [else (error (sprintf "Invalid synthesis strategy ~a" strategy))]))
+    [else (error "Invalid synthesis strategy ~a" strategy)]))
 
 (define (synthesize-operation op)
   (end-operation-synthesis 
@@ -157,11 +135,19 @@ END
     [(16) msp-sr-~a.w sr op1 op2 dst]
     [else (mspx-bv 0)]))\n" tab tab tab))
 
-(fprintf (out-file) "#lang rosette\n")
-(fprintf (out-file) "(require \"../../lib/bv-operations.rkt\")\n")
-(fprintf (out-file) "(provide (all-defined-out))\n\n")
-
-(for ([op (in-list (op-list))])
-  (synthesize-operations (list op)))
-
-(close-output-port (out-file))
+(define (run #:racket62 racketpath
+             #:op-list oplist
+             #:data-prefix [datapath "data/"]
+             #:out-file [outfile (current-output-port)])
+  (parameterize ([racket62 racketpath]
+                 [data-prefix datapath]
+                 [out-file outfile]
+                 [op-list oplist])
+    (fprintf (out-file) "#lang rosette\n")
+    (fprintf (out-file) "(require \"../../lib/bv-operations.rkt\")\n")
+    (fprintf (out-file) "(provide (all-defined-out))\n\n")
+    
+    (for ([op (in-list (op-list))])
+      (synthesize-operations (list op)))
+    
+    (close-output-port (out-file))))
