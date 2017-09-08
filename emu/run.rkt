@@ -1,7 +1,6 @@
 #lang racket ; Requires a Racket 6.8+ / Rosette 2.2 environment
 
-(require racket/cmdline
-         "emulate.rkt")
+(require "emulate.rkt")
 
 ; Command line parameters
 (define interactive-mode (make-parameter #f))
