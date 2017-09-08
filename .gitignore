@@ -4,6 +4,7 @@
 .\#*
 *.tmp
 *.bak
+*.swp
 
 # Compiled racket bytecode
 compiled
