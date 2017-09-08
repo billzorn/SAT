@@ -15,7 +15,7 @@ exec racket -tm $0 -- "$@"
   (define racket62 (build-path (find-system-path 'home-dir) "racket-6.2/bin/racket"))
   (define data-prefix "data/")
   (define out-file (current-output-port))
-  (define op-list '(mov.b mov.w add.b add.w addc.b addc.w sub.b sub.w cmp.b cmp.w dadd.b dadd.w bit.b bit.w bic.b bic.w bis.b bis.w xor.b xor.w and.b and.w))
+  (define op-list '(mov.b mov.w add.b add.w addc.b addc.w sub.b sub.w subc.b subc.w cmp.b cmp.w dadd.b dadd.w bit.b bit.w bic.b bic.w bis.b bis.w xor.b xor.w and.b and.w))
   
   (command-line
     #:once-each

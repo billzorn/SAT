@@ -166,5 +166,5 @@
       (if (equal? elf-file "")
         (printf "Elf file needed when running in noninteractive mode (see --help)\n")
         (begin (msp430-load elf-file)
-               (run (emulator-state)) 
+               (run-to-halt (emulator-state)) 
                (printregs (regs)))))))

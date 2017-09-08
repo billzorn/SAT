@@ -127,13 +127,13 @@ END
   (case bw
     [(8) msp-~a.b sr op1 op2]
     [(16) msp-~a.w sr op1 op2]
-    [else (mspx-bv 0)]))\n" tab tab tab)
+    [else (bv 0 20)]))\n" tab tab tab)
   (fprintf (out-file)
 "(define (msp-sr-~a bw sr op1 op2 dst)
   (case bw
     [(8) msp-sr-~a.b sr op1 op2 dst]
     [(16) msp-sr-~a.w sr op1 op2 dst]
-    [else (mspx-bv 0)]))\n" tab tab tab))
+    [else (bv 0 20)]))\n" tab tab tab))
 
 (define (run #:racket62 racketpath
              #:op-list oplist
