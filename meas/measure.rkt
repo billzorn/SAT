@@ -5,11 +5,6 @@
          "measure-regops.rkt" 
          "process-measurements.rkt")
 
-(define data-prefix (make-parameter "data/"))
-(define nsamples (make-parameter 65536))
-(define nprocs (make-parameter 1))
-(define width (make-parameter 'a))
-
 (define-syntax-rule (defopc/regop.b id opc)
   (define (id rsrc rdst) (list (bitwise-ior (bitwise-and rdst #xf) #x40)
                                (bitwise-ior (bitwise-and rsrc #xf) opc))))
@@ -300,23 +295,16 @@
           [sym (first fields)])
       (process-regop.b inpath outpath sym))))
 
-; Act on command-line input
-(define (sread s) (define i (open-input-string s)) (read i))
-
-(command-line
-  #:once-each
-  [("-d" "--data-path") datapath "Path where the collected data should be stored (e.g. data/)"
-                        (data-prefix datapath)]
-  [("-n" "--num-samples") n "Number of samples to take (only for non-thorough sampling)"
-                        (nsamples n)]
-  [("-j" "--num-procs") j "Number of processes to run for data collection"
-                        (nprocs j)]
-  [("-w" "--width") w "Operation width to collect data for. 'b or 8, 'w or 16, or 'a or 20."
-                        (width (sread w))]
-  #:args rest
-  (void))
-
-(case (width)
-  [('b 8)  (rmeasure-regop.b/all regops.b (nprocs))]
-  [('w 16) (rmeasure-regop/all regops.w (nsamples) 65536 (nprocs))]
-  [('a 20) (rmeasure-regop/all regops.a (nsamples) 2097152 (nprocs))])
+(define (run #:data-prefix [datapath "data/"]
+             #:nsamples [nsamples 65536]
+             #:nprocs [nprocs 1]
+             #:width [width 'a])
+  (data-prefix datapath)
+  (case width
+    [('b 8)  (rmeasure-regop.b/all regops.b nprocs)]
+    [('w 16) (rmeasure-regop/all regops.w nsamples 65536 nprocs)]
+    [('a 20) (rmeasure-regop/all regops.a nsamples 2097152 nprocs)]
+    [('all) 
+      (rmeasure-regop.b/all regops.b nprocs) 
+      (rmeasure-regop/all regops.w nsamples 65536 nprocs)
+      (rmeasure-regop/all regops.a nsamples 2097152 nprocs)]))
