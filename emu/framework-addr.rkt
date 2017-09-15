@@ -7,13 +7,18 @@
 
 ; Domain Specific Language for describing operations over processor state
 
+; The base expression type. Don't construct these directly, instead use one of
+; the subclasses.
 (struct addr-expression () #:transparent)
 
+; A constant integer expression
 (struct constant addr-expression (i) #:transparent)
+; A reference to one of the state's memory maps
 (struct ref addr-expression (map addr) #:transparent)
+; Adding two expressions together
 (struct add addr-expression (a1 a2) #:transparent)
+; Multiplying an expression by an integer
 (struct mul addr-expression (a1 i) #:transparent)
-(struct switch addr-expression () #:transparent)
 
 (define-signature framework-addr^
   (perform-read    ; (addr-expression? state? -> bitvector?)
