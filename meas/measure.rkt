@@ -2,6 +2,7 @@
 
 (require racket/cmdline
          "../lib/racket-utils.rkt" 
+         "../mmcu/msp430/ops.rkt"
          "measure-regops.rkt" 
          "process-measurements.rkt")
 
@@ -302,14 +303,26 @@
 (define (run #:data-prefix [datapath "data/"]
              #:nsamples [nsamples 65536]
              #:nprocs [nprocs 1]
-             #:width [width 'a])
+             #:op-list [ops all-ops])
   (data-prefix datapath)
-  (case width
-    [(b 8)  (rmeasure-regop.b/all regops.b nprocs)]
-    [(w 16) (rmeasure-regop/all regops.w nsamples 65536 nprocs)]
-    [(a 20) (rmeasure-regop/all regops.a nsamples 2097152 nprocs)]
-    [(all) 
-      (rmeasure-regop.b/all regops.b nprocs) 
-      (rmeasure-regop/all regops.w nsamples 65536 nprocs)
-      (rmeasure-regop/all regops.a nsamples 2097152 nprocs)]
-    [else (error (sprintf "Invalid width ~a specified" width))]))
+
+  (for ([op (in-list ops)])
+    (cond 
+      [(assoc op regops.b) => 
+       (λ (fields) (rmeasure-regop.b/par #:nprocs nprocs 
+                                         #:opc (second fields) 
+                                         #:fname (third fields)))]
+      [(assoc op regops.w) =>
+       (λ (fields) (rmeasure-regop/par #:nprocs nprocs 
+                                       #:opc (second fields) 
+                                       #:n nsamples 
+                                       #:maxinput 65536 
+                                       #:fname (third fields)))]
+      [(assoc op regops.a) =>
+       (λ (fields) (rmeasure-regop/par #:nprocs nprocs 
+                                       #:opc (second fields) 
+                                       #:n nsamples 
+                                       #:maxinput 2097152 
+                                       #:fname (third fields)))]
+      [else (error "Unknown op ~a" op)])))
+

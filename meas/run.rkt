@@ -1,6 +1,6 @@
 #!/bin/sh
 #|
-exec racket -tm $0 -- $*
+exec racket -tm $0 -- "$@"
 |#
 
 #lang racket
@@ -9,15 +9,15 @@ exec racket -tm $0 -- $*
 
 (require racket/cmdline
          "../lib/racket-utils.rkt"
+         "../mmcu/msp430/ops.rkt"
          "measure.rkt")
 
 (define data-prefix "data/")
 (define nsamples 65536)
 (define nprocs 1)
-(define width 'a)
+(define ops all-ops)
 
 (define (main . args)
-  (printf "running main with args ~a\n" (current-command-line-arguments))
   (command-line
     #:once-each
     [("-d" "--data-path") datapath "Path where the collected data should be stored (e.g. data/)"
@@ -26,15 +26,15 @@ exec racket -tm $0 -- $*
                           (set! nsamples (sread n))]
     [("-j" "--num-procs") j "Number of processes to run for data collection"
                           (set! nprocs (sread j))]
-    [("-w" "--width") w "Operation width to collect data for. 'b or 8, 'w or 16, or 'a or 20."
-                          (set! width (sread w))]
+    [("-o" "--ops") o "Operations to synthesize. Omit for all ops"
+                          (set! ops (sread o))]
     #:args rest
     (void))
-  
+
   (run #:data-prefix data-prefix 
        #:nsamples nsamples 
        #:nprocs nprocs 
-       #:width width))
+       #:op-list ops))
 
 (define-namespace-anchor meas)
 (define (place-main ch)

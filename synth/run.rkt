@@ -6,12 +6,11 @@ exec racket -tm $0 -- "$@"
 #lang racket
 
 (require racket/cmdline
+         "../mmcu/msp430/ops.rkt"
          "../lib/racket-utils.rkt"
          "synthesize.rkt")
 
 (provide main place-main)
-
-(define all-ops '(mov.b mov.w add.b add.w addc.b addc.w sub.b sub.w subc.b subc.w cmp.b cmp.w dadd.b dadd.w bit.b bit.w bic.b bic.w bis.b bis.w xor.b xor.w and.b and.w))
 
 (define racket62-assumed (build-path (find-system-path 'home-dir) "racket-6.2/bin/racket"))
 
